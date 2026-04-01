@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="card">
+    <h2>Project Settings</h2>
+    <form id="project-form">
+        <label>Project Name <input name="project_name"></label>
+        <label>Project Directory <input name="project_directory"></label>
+        <label>Project Description <input name="project_description"></label>
+        <label>Default Save Location <input name="default_save_location"></label>
+        <label>Notes <textarea name="notes"></textarea></label>
+        <label>CSV Filename <input name="csv_filename" value="measurements.csv"></label>
+        <button type="submit">Save Project</button>
+    </form>
+</section>
+{% endblock %}
