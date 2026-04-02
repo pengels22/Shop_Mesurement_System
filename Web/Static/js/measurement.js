@@ -142,7 +142,7 @@
         const dx = measurement.end_px.x - measurement.start_px.x;
         const dy = measurement.end_px.y - measurement.start_px.y;
         const pixelLength = Math.hypot(dx, dy);
-        return pixelLength / 100.0;
+        return pixelLength / 32.9;
     }
 
     function ensureUniqueAxis(label) {
