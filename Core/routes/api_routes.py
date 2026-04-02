@@ -66,6 +66,20 @@ def capture_frame() -> Response:
     })
 
 
+
+
+@api_blueprint.get('/camera/capture/<frame_id>')
+def get_captured_frame(frame_id: str) -> Response:
+    camera_service = get_camera_service()
+    try:
+        frame_path = camera_service.capture_root / f'{frame_id}.png'
+    except Exception:
+        return json_error('capture_not_found', 'Capture not found', HTTP_NOT_FOUND)
+    if not frame_path.exists():
+        return json_error('capture_not_found', 'Capture not found', HTTP_NOT_FOUND)
+    return send_file(frame_path)
+
+
 @api_blueprint.post('/projects')
 def create_project() -> Response:
     payload = request.get_json(force=True)
@@ -128,6 +142,15 @@ def list_active_parts() -> Response:
         part_json_path = Path(active_project['default_save_location']) / f'{file_stem}.json'
         part_data = FileService.read_json(part_json_path, {})
         grouped_row['measurement_type'] = part_data.get('measurement_type', DEFAULT_MEASUREMENT_TYPE)
+        if part_data.get('measurements'):
+            grouped_row['measurements'] = [
+                {
+                    'label': measurement.get('label'),
+                    'value_in': measurement.get('value_in'),
+                    'color': measurement.get('color'),
+                }
+                for measurement in part_data.get('measurements', [])
+            ]
         parts.append(grouped_row)
 
     return jsonify({'ok': True, 'project_name': active_project['project_name'], 'parts': parts})

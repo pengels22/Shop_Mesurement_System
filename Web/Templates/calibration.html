@@ -1,7 +1,25 @@
 {% extends 'base.html' %}
+{% block title %}Calibration | Shop Measurement System{% endblock %}
+{% block page_id %}calibration{% endblock %}
 {% block content %}
-<section class="card">
-    <h2>Calibration</h2>
-    <p>Calibration tools and mask controls will live here.</p>
+<section class="page-grid two-col-home">
+    <section class="card">
+        <h2>Calibration Summary</h2>
+        <p class="muted">Current build uses the backend calibration profile for saved measurements.</p>
+        <ul class="info-list">
+            <li>Measurements are validated at a minimum of 1 mm.</li>
+            <li>Display and save values are in inches only.</li>
+            <li>Masking and perspective files are stored in <code>Core/config</code>.</li>
+        </ul>
+    </section>
+    <section class="card">
+        <h2>Current Workflow</h2>
+        <ol class="info-list ordered">
+            <li>Open the measurement page and capture a frame.</li>
+            <li>Add or adjust X, Y, Z, and Mx lines.</li>
+            <li>Save the part into the active project.</li>
+            <li>Review saved parts in the parts browser.</li>
+        </ol>
+    </section>
 </section>
 {% endblock %}

@@ -1,12 +1,69 @@
 {% extends 'base.html' %}
+{% block title %}Measurement | Shop Measurement System{% endblock %}
+{% block page_id %}measurement{% endblock %}
 {% block content %}
-<section class="card split-layout">
-    <div>
-        <h2>Measurement</h2>
-        <p>Live feed, capture, and measurement editing go here.</p>
-    </div>
-    <div>
-        <img class="stream-preview" src="/api/camera/stream" alt="Camera stream">
-    </div>
+<section class="card measurement-shell">
+    <aside class="measurement-sidebar">
+        <div class="stack-block">
+            <h2>Measurement</h2>
+            <div id="measurement-project-name" class="project-chip wide">Loading_Project...</div>
+        </div>
+
+        <label>
+            <span>Part Name</span>
+            <input id="part-name-input" autocomplete="off" required>
+        </label>
+
+        <label>
+            <span>Mode</span>
+            <select id="measurement-mode-select">
+                <option value="simple">Auto</option>
+                <option value="simple">Assist</option>
+                <option value="simple">Manual Simple</option>
+                <option value="complex">Manual Complex</option>
+            </select>
+        </label>
+
+        <div class="toolbar-column">
+            <button id="capture-button" class="primary-button" type="button">Capture Frame</button>
+            <button id="resume-live-button" class="secondary-button" type="button">Resume Live View</button>
+        </div>
+
+        <div class="measurement-action-grid">
+            <button id="add-x-button" class="axis-button axis-x" type="button">Add X</button>
+            <button id="add-y-button" class="axis-button axis-y" type="button">Add Y</button>
+            <button id="add-z-button" class="axis-button axis-z" type="button">Add Z</button>
+            <button id="add-m-button" class="secondary-button" type="button">Add M</button>
+        </div>
+
+        <div class="toolbar-row compact-row">
+            <button id="horizontal-lock-button" class="secondary-button" type="button">Horizontal Lock</button>
+            <button id="vertical-lock-button" class="secondary-button" type="button">Vertical Lock</button>
+        </div>
+
+        <div class="list-panel">
+            <div class="card-header-row small-gap">
+                <h3>Measurements</h3>
+                <button id="clear-all-button" class="danger-button" type="button">Clear All</button>
+            </div>
+            <div id="measurement-list" class="measurement-list"></div>
+        </div>
+
+        <div class="toolbar-column top-gap">
+            <button id="save-part-button" class="primary-button" type="button">Save Part</button>
+            <div id="measurement-status" class="status-box">Live view ready.</div>
+        </div>
+    </aside>
+
+    <section class="measurement-canvas-shell">
+        <div class="camera-stage">
+            <img id="camera-image" class="camera-image" src="/api/camera/stream" alt="Camera stream">
+            <canvas id="measurement-canvas" class="measurement-canvas"></canvas>
+        </div>
+        <div class="muted top-gap">Click a measurement row or line to edit it. Selected lines show drag handles and a trash icon.</div>
+    </section>
 </section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/measurement.js') }}"></script>
 {% endblock %}

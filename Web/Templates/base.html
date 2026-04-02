@@ -3,13 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shop Measurement System</title>
+    <title>{% block title %}Shop Measurement System{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head_extra %}{% endblock %}
 </head>
-<body>
+<body data-page="{% block page_id %}{% endblock %}">
     <header class="app-header">
-        <h1>Shop_Measurement_System</h1>
-        <nav>
+        <div>
+            <h1>Shop_Measurement_System</h1>
+            <div id="global-project-chip" class="project-chip">No_Active_Project</div>
+        </div>
+        <nav class="main-nav">
             <a href="/">Home</a>
             <a href="/project-settings">Project Settings</a>
             <a href="/measurement">Measurement</a>
@@ -20,6 +24,8 @@
     <main class="page-shell">
         {% block content %}{% endblock %}
     </main>
+    <div id="toast-container" class="toast-container"></div>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,15 +1,60 @@
 {% extends 'base.html' %}
+{% block title %}Project Settings | Shop Measurement System{% endblock %}
+{% block page_id %}project-settings{% endblock %}
 {% block content %}
-<section class="card">
-    <h2>Project Settings</h2>
-    <form id="project-form">
-        <label>Project Name <input name="project_name"></label>
-        <label>Project Directory <input name="project_directory"></label>
-        <label>Project Description <input name="project_description"></label>
-        <label>Default Save Location <input name="default_save_location"></label>
-        <label>Notes <textarea name="notes"></textarea></label>
-        <label>CSV Filename <input name="csv_filename" value="measurements.csv"></label>
-        <button type="submit">Save Project</button>
-    </form>
+<section class="page-grid two-col-home">
+    <section class="card">
+        <div class="card-header-row">
+            <div>
+                <h2>Project Settings</h2>
+                <p class="muted">Create or update a project configuration.</p>
+            </div>
+        </div>
+        <form id="project-form" class="form-grid">
+            <label>
+                <span>Project Name</span>
+                <input name="project_name" id="project_name" required>
+            </label>
+            <label>
+                <span>Project Directory</span>
+                <input name="project_directory" id="project_directory" required>
+            </label>
+            <label class="full-width">
+                <span>Project Description</span>
+                <input name="project_description" id="project_description">
+            </label>
+            <label>
+                <span>Default Save Location</span>
+                <input name="default_save_location" id="default_save_location" required>
+            </label>
+            <label>
+                <span>CSV Filename</span>
+                <input name="csv_filename" id="csv_filename" value="measurements.csv" required>
+            </label>
+            <label class="full-width">
+                <span>Notes</span>
+                <textarea name="notes" id="notes" rows="4"></textarea>
+            </label>
+            <div class="toolbar-row full-width">
+                <button type="submit" class="primary-button">Save Project</button>
+                <button type="button" id="load-active-project-button" class="secondary-button">Load Active Project</button>
+                <a class="secondary-button" href="/">Back Home</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="card">
+        <h2>Field Rules</h2>
+        <ul class="info-list">
+            <li>Spaces entered in UI fields are automatically replaced with <code>_</code>.</li>
+            <li>Project names and directories are kept filesystem-safe.</li>
+            <li>The CSV filename defaults to <code>measurements.csv</code>.</li>
+            <li>Saving a project also makes it the active project.</li>
+        </ul>
+        <div id="project-settings-status" class="status-box">Ready.</div>
+    </section>
 </section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/project_settings.js') }}"></script>
 {% endblock %}

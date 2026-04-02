@@ -1,7 +1,36 @@
 {% extends 'base.html' %}
+{% block title %}Home | Shop Measurement System{% endblock %}
+{% block page_id %}home{% endblock %}
 {% block content %}
-<section class="card">
-    <h2>Home</h2>
-    <p>Start, open, or continue a measurement project.</p>
+<section class="page-grid two-col-home">
+    <section class="card">
+        <div class="card-header-row">
+            <div>
+                <h2>Project Control</h2>
+                <p class="muted">Create, open, and continue project work.</p>
+            </div>
+            <a class="button primary-link" href="/project-settings">New Project</a>
+        </div>
+        <div id="active-project-summary" class="empty-state compact">Loading active project...</div>
+        <div class="toolbar-row top-gap">
+            <button id="continue-project-button" class="primary-button" type="button">Continue Active Project</button>
+            <a class="secondary-button" href="/measurement">Go To Measurement</a>
+            <a class="secondary-button" href="/parts-browser">Open Parts Browser</a>
+        </div>
+    </section>
+
+    <section class="card">
+        <div class="card-header-row">
+            <div>
+                <h2>Available Projects</h2>
+                <p class="muted">Select a project to activate it.</p>
+            </div>
+            <button id="refresh-projects-button" class="secondary-button" type="button">Refresh</button>
+        </div>
+        <div id="project-list" class="project-list"></div>
+    </section>
 </section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/home.js') }}"></script>
 {% endblock %}

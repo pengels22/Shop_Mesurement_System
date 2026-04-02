@@ -1,8 +1,34 @@
 {% extends 'base.html' %}
+{% block title %}Parts Browser | Shop Measurement System{% endblock %}
+{% block page_id %}parts-browser{% endblock %}
 {% block content %}
 <section class="card">
-    <h2>Parts Browser</h2>
-    <p>Saved project parts will be displayed here.</p>
+    <div class="card-header-row">
+        <div>
+            <h2>Parts Browser</h2>
+            <p class="muted">Saved parts in the active project.</p>
+        </div>
+        <button id="refresh-parts-button" class="secondary-button" type="button">Refresh</button>
+    </div>
     <div id="parts-grid" class="parts-grid"></div>
 </section>
+
+<div id="image-modal" class="modal hidden">
+    <div class="modal-panel wide-modal">
+        <div class="card-header-row">
+            <div>
+                <h2 id="modal-part-name">Part</h2>
+                <p class="muted">Annotated complex measurement image.</p>
+            </div>
+            <button id="close-modal-button" class="secondary-button" type="button">Close</button>
+        </div>
+        <div class="modal-content-grid">
+            <img id="modal-image" class="modal-image" alt="Annotated part image">
+            <div id="modal-measurement-list" class="measurement-list"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/parts_browser.js') }}"></script>
 {% endblock %}

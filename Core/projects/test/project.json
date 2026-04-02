@@ -1,0 +1,9 @@
+{
+  "project_name": "Test",
+  "project_directory": "/home/pi/Shop_Mesurement_System/Core/projects/test",
+  "project_description": "Dev_Test",
+  "default_save_location": "/home/pi/Shop_Mesurement_System/Core/projects/test/parts",
+  "notes": "",
+  "csv_filename": "measurements.csv",
+  "units": "inches"
+}
