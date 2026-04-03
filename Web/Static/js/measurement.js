@@ -616,4 +616,27 @@
 
     updateMeasurementList();
     loadProject();
+function cancelPendingMeasurementPoint() {
+    if (!state.clickStartCanvas && !state.pendingStartCanvas) {
+        return;
+    }
+
+    state.clickStartCanvas = null;
+    state.pendingStartCanvas = null;
+    state.dragCurrentCanvas = null;
+    state.isPointerDown = false;
+    state.dragThresholdPassed = false;
+
+    drawCanvas();
+    setStatus('Start point cleared. Click to begin again.');
+}
+function onKeyDown(event) {
+    if (event.key === 'Escape') {
+        if (state.clickStartCanvas || state.pendingStartCanvas) {
+            event.preventDefault();
+            cancelPendingMeasurementPoint();
+        }
+    }
+}
+window.addEventListener('keydown', onKeyDown);
 })();

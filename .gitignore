@@ -1,0 +1,140 @@
+# ---------------------------
+# Project-specific ignores
+# ---------------------------
+*.cry
+*.png
+*.csv
+
+# Optional generated image/data files
+*.jpg
+*.jpeg
+*.bmp
+*.tif
+*.tiff
+*.gif
+*.csv
+*.log
+*.tmp
+*.bak
+
+# Ignore calibration/runtime/generated files if needed
+*.db
+*.sqlite
+*.sqlite3
+
+# ---------------------------
+# Python
+# ---------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Type checkers / linters
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.ruff_cache/
+.pytype/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environments
+.env
+.env.*
+.venv/
+venv/
+env/
+ENV/
+
+# Flask
+instance/
+.webassets-cache/
+
+# Local config / secrets
+config.py
+secrets.json
+credentials.json
+token.json
+*.env
+
+# ---------------------------
+# Logs / runtime files
+# ---------------------------
+logs/
+*.pid
+*.pid.lock
+*.out
+*.err
+
+# ---------------------------
+# IDE / editor
+# ---------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---------------------------
+# OS files
+# ---------------------------
+.DS_Store
+Thumbs.db
+
+# ---------------------------
+# Optional: uploaded/generated assets
+# Uncomment if your app creates these
+# ---------------------------
+# uploads/
+# output/
+# exports/
+# snapshots/
+# annotated_images/
+# generated/
+# data/
