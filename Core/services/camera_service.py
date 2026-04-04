@@ -23,8 +23,9 @@ MJPEG_LINE_BREAK = b'\r\n'
 
 
 class CameraService:
-    def __init__(self, capture_root: Path, camera_profile: dict):
+    def __init__(self, capture_root: Path, camera_profile: dict, mask_profile: dict | None = None):
         self.capture_root = FileService.ensure_dir(capture_root)
+        self.mask_profile = mask_profile or {}
         self.camera_index = int(camera_profile.get('camera_index', DEFAULT_CAMERA_INDEX))
         self.width = int(camera_profile.get('resolution_width', DEFAULT_WIDTH))
         self.height = int(camera_profile.get('resolution_height', DEFAULT_HEIGHT))
@@ -69,6 +70,29 @@ class CameraService:
             self._capture.set(cv2.CAP_PROP_FPS, self.fps)
         return self._capture
 
+    def _apply_mask(self, frame: np.ndarray) -> np.ndarray:
+        if not isinstance(frame, np.ndarray):
+            return frame
+        mask_cfg = self.mask_profile or {}
+
+        # simple top strip removal
+        top_ignore = int(mask_cfg.get('top_ignore_pixels') or 0)
+        if top_ignore > 0:
+            top_ignore = min(top_ignore, frame.shape[0] - 1)
+            frame[:top_ignore, :] = 0
+
+        crop_fraction = mask_cfg.get('crop_fraction')
+        if isinstance(crop_fraction, dict):
+            h, w = frame.shape[:2]
+            x0 = int(max(0.0, min(1.0, float(crop_fraction.get('x0', 0.0)))) * w)
+            y0 = int(max(0.0, min(1.0, float(crop_fraction.get('y0', 0.0)))) * h)
+            x1 = int(max(0.0, min(1.0, float(crop_fraction.get('x1', 1.0)))) * w)
+            y1 = int(max(0.0, min(1.0, float(crop_fraction.get('y1', 1.0)))) * h)
+            x1 = max(x0 + 1, min(w, x1))
+            y1 = max(y0 + 1, min(h, y1))
+            frame = frame[y0:y1, x0:x1]
+        return frame
+
     def get_frame(self) -> np.ndarray:
         capture_device = self._open()
         success, frame = capture_device.read()
@@ -79,7 +103,7 @@ class CameraService:
                 frame = cv2.remap(frame, self._map1, self._map2, interpolation=cv2.INTER_LINEAR)
             except Exception:
                 pass
-        return frame
+        return self._apply_mask(frame)
 
     def capture_frame(self) -> Tuple[str, Path, int, int]:
         with self._lock:
