@@ -41,6 +41,15 @@
     const canvas = document.getElementById('measurement-canvas');
     const stage = canvas.parentElement;
     const context = canvas.getContext('2d');
+    const MASK = {
+        enabled: true,
+        // Fractions of canvas width/height for the clear window.
+        x0: 0.25,
+        x1: 0.85,
+        y0: 0.08,
+        y1: 0.78,
+        color: 'rgba(255, 68, 0, 0.75)', // vivid red/orange
+    };
     const projectNameChip = document.getElementById('measurement-project-name');
     const partNameInput = document.getElementById('part-name-input');
     const modeSelect = document.getElementById('measurement-mode-select');
@@ -234,6 +243,18 @@
 
     function drawCanvas() {
         context.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (MASK.enabled) {
+            context.save();
+            context.fillStyle = MASK.color;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            const x0 = MASK.x0 * canvas.width;
+            const y0 = MASK.y0 * canvas.height;
+            const w = (MASK.x1 - MASK.x0) * canvas.width;
+            const h = (MASK.y1 - MASK.y0) * canvas.height;
+            context.clearRect(x0, y0, w, h);
+            context.restore();
+        }
 
         state.measurements.forEach((measurement) => {
             const start = toCanvasFromImage(measurement.start_px);
