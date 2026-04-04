@@ -1,10 +1,4 @@
 {
   "ignore_zones": [],
-  "top_ignore_pixels": 0,
-  "crop_fraction": {
-    "x0": 0.0565,
-    "y0": 0.0491,
-    "x1": 0.8214,
-    "y1": 0.6321
-  }
+  "top_ignore_pixels": 0
 }

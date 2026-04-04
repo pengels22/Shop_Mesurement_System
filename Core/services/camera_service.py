@@ -22,19 +22,13 @@ MJPEG_CONTENT_TYPE = b'Content-Type: image/jpeg\r\n\r\n'
 MJPEG_LINE_BREAK = b'\r\n'
 
 
-def _clamp(value: int, low: int, high: int) -> int:
-    return max(low, min(high, value))
-
-
 class CameraService:
-    def __init__(self, capture_root: Path, camera_profile: dict, mask_profile: dict | None = None):
+    def __init__(self, capture_root: Path, camera_profile: dict):
         self.capture_root = FileService.ensure_dir(capture_root)
-        self.camera_profile = camera_profile
         self.camera_index = int(camera_profile.get('camera_index', DEFAULT_CAMERA_INDEX))
         self.width = int(camera_profile.get('resolution_width', DEFAULT_WIDTH))
         self.height = int(camera_profile.get('resolution_height', DEFAULT_HEIGHT))
         self.fps = int(camera_profile.get('fps', DEFAULT_FPS))
-        self.mask_profile = mask_profile or {}
         self._capture = None
         self._lock = threading.Lock()
         self._counter = 0
@@ -75,85 +69,6 @@ class CameraService:
             self._capture.set(cv2.CAP_PROP_FPS, self.fps)
         return self._capture
 
-    def close(self) -> None:
-        if self._capture is not None:
-            try:
-                self._capture.release()
-            except Exception:
-                pass
-            self._capture = None
-
-    def _apply_mask(self, frame: np.ndarray) -> np.ndarray:
-        """Apply masking and optional cropping to a frame.
-
-        Supports two modes:
-        - ignore_zones: list of dicts with x, y, width, height (pixels) to black out
-        - crop or crop_fraction: dict specifying ROI; crop_fraction uses normalized 0-1 coordinates
-        """
-        if not isinstance(frame, np.ndarray):
-            return frame
-
-        output = frame
-        height, width = output.shape[:2]
-        mask_config = self.mask_profile or {}
-
-        top_ignore = int(mask_config.get('top_ignore_pixels') or 0)
-        if top_ignore > 0:
-            clipped_top = _clamp(top_ignore, 0, height)
-            output[:clipped_top, :] = 0
-
-        for zone in mask_config.get('ignore_zones', []) or []:
-            try:
-                zx = int(zone.get('x', 0) or 0)
-                zy = int(zone.get('y', 0) or 0)
-                zw = int(zone.get('width', 0) or 0)
-                zh = int(zone.get('height', 0) or 0)
-            except Exception:
-                continue
-            if zw <= 0 or zh <= 0:
-                continue
-            x0 = _clamp(zx, 0, width)
-            y0 = _clamp(zy, 0, height)
-            x1 = _clamp(zx + zw, 0, width)
-            y1 = _clamp(zy + zh, 0, height)
-            if x1 > x0 and y1 > y0:
-                output[y0:y1, x0:x1] = 0
-
-        crop_fraction = mask_config.get('crop_fraction') or None
-        crop_pixels = mask_config.get('crop') or None
-
-        if crop_fraction:
-            try:
-                x0 = int((crop_fraction.get('x0', 0) or 0) * width)
-                y0 = int((crop_fraction.get('y0', 0) or 0) * height)
-                x1 = int((crop_fraction.get('x1', 1) or 1) * width)
-                y1 = int((crop_fraction.get('y1', 1) or 1) * height)
-            except Exception:
-                x0 = y0 = 0
-                x1, y1 = width, height
-        elif crop_pixels:
-            try:
-                x0 = int(crop_pixels.get('x', 0) or 0)
-                y0 = int(crop_pixels.get('y', 0) or 0)
-                x1 = x0 + int(crop_pixels.get('width', width) or width)
-                y1 = y0 + int(crop_pixels.get('height', height) or height)
-            except Exception:
-                x0 = y0 = 0
-                x1, y1 = width, height
-        else:
-            x0 = y0 = 0
-            x1, y1 = width, height
-
-        x0 = _clamp(x0, 0, width)
-        y0 = _clamp(y0, 0, height)
-        x1 = _clamp(x1, x0 + 1, width)
-        y1 = _clamp(y1, y0 + 1, height)
-
-        if x0 == 0 and y0 == 0 and x1 == width and y1 == height:
-            return output
-
-        return output[y0:y1, x0:x1]
-
     def get_frame(self) -> np.ndarray:
         capture_device = self._open()
         success, frame = capture_device.read()
@@ -164,7 +79,7 @@ class CameraService:
                 frame = cv2.remap(frame, self._map1, self._map2, interpolation=cv2.INTER_LINEAR)
             except Exception:
                 pass
-        return self._apply_mask(frame)
+        return frame
 
     def capture_frame(self) -> Tuple[str, Path, int, int]:
         with self._lock:

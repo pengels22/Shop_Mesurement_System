@@ -47,7 +47,6 @@ def create_app(base_dir: Path | None = None) -> Flask:
     config_service = ConfigService(config_directory)
     calibration_settings = config_service.load_calibration()
     camera_profile = config_service.load_camera_profile()
-    mask_profile = config_service.load_mask()
 
     pixels_per_inch = float(
         calibration_settings.get('pixels_per_inch', DEFAULT_PIXELS_PER_INCH)
@@ -60,7 +59,7 @@ def create_app(base_dir: Path | None = None) -> Flask:
     app.config['CSV_SERVICE'] = CsvService()
     app.config['IMAGE_SERVICE'] = ImageService()
     app.config['MEASUREMENT_SERVICE'] = MeasurementService(pixels_per_inch)
-    app.config['CAMERA_SERVICE'] = CameraService(capture_root_directory, camera_profile, mask_profile)
+    app.config['CAMERA_SERVICE'] = CameraService(capture_root_directory, camera_profile)
 
     app.register_blueprint(page_blueprint)
     app.register_blueprint(api_blueprint)
