@@ -1,4 +1,13 @@
 {
   "ignore_zones": [],
-  "top_ignore_pixels": 0
+  "top_ignore_pixels": 0,
+  "color_mask": {
+    "h_min": 35,
+    "s_min": 50,
+    "v_min": 50,
+    "h_max": 85,
+    "s_max": 255,
+    "v_max": 255,
+    "invert": false
+  }
 }

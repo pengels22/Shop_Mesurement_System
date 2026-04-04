@@ -47,6 +47,10 @@ def create_app(base_dir: Path | None = None) -> Flask:
     config_service = ConfigService(config_directory)
     calibration_settings = config_service.load_calibration()
     camera_profile = config_service.load_camera_profile()
+    mask_settings = config_service.load_mask()
+    # merge mask color settings into camera_profile so CameraService can use it
+    if mask_settings and mask_settings.get('color_mask'):
+        camera_profile['color_mask'] = mask_settings.get('color_mask')
 
     pixels_per_inch = float(
         calibration_settings.get('pixels_per_inch', DEFAULT_PIXELS_PER_INCH)
