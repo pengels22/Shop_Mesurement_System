@@ -36,6 +36,10 @@ def get_camera_service():
     return current_app.config['CAMERA_SERVICE']
 
 
+def get_config_service():
+    return current_app.config['CONFIG_SERVICE']
+
+
 def json_error(status: str, message: str, http_code: int, **extra_fields) -> tuple[Response, int]:
     payload = {'ok': False, 'status': status, 'message': message}
     payload.update(extra_fields)
@@ -51,6 +55,66 @@ def health() -> Response:
 def camera_stream() -> Response:
     camera_service = get_camera_service()
     return Response(camera_service.mjpeg_generator(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@api_blueprint.post('/camera/mask')
+def update_mask() -> Response:
+    config_service = get_config_service()
+    payload = request.get_json(force=True)
+    if not isinstance(payload, dict):
+        return json_error('validation_error', 'Mask payload must be a JSON object', HTTP_BAD_REQUEST)
+
+    # basic validation / clamping
+    mask_payload = {
+        'ignore_zones': [],
+        'top_ignore_pixels': int(payload.get('top_ignore_pixels', 0) or 0),
+    }
+
+    for zone in payload.get('ignore_zones', []) or []:
+        if not isinstance(zone, dict):
+            continue
+        try:
+            mask_payload['ignore_zones'].append({
+                'x': int(zone.get('x', 0) or 0),
+                'y': int(zone.get('y', 0) or 0),
+                'width': int(zone.get('width', 0) or 0),
+                'height': int(zone.get('height', 0) or 0),
+            })
+        except Exception:
+            continue
+
+    crop_fraction = payload.get('crop_fraction')
+    crop_pixels = payload.get('crop')
+    if isinstance(crop_fraction, dict):
+        mask_payload['crop_fraction'] = {
+            'x0': float(crop_fraction.get('x0', 0) or 0),
+            'y0': float(crop_fraction.get('y0', 0) or 0),
+            'x1': float(crop_fraction.get('x1', 1) or 1),
+            'y1': float(crop_fraction.get('y1', 1) or 1),
+        }
+    elif isinstance(crop_pixels, dict):
+        mask_payload['crop'] = {
+            'x': int(crop_pixels.get('x', 0) or 0),
+            'y': int(crop_pixels.get('y', 0) or 0),
+            'width': int(crop_pixels.get('width', 0) or 0),
+            'height': int(crop_pixels.get('height', 0) or 0),
+        }
+
+    FileService.write_json(config_service.mask_path, mask_payload)
+
+    # refresh live service so it picks up the new mask immediately
+    old_camera = get_camera_service()
+    try:
+        old_camera.close()
+    except Exception:
+        pass
+    current_app.config['CAMERA_SERVICE'] = old_camera.__class__(
+        old_camera.capture_root,
+        getattr(old_camera, 'camera_profile', {}),
+        mask_payload,
+    )
+
+    return jsonify({'ok': True, 'mask': mask_payload})
 
 
 @api_blueprint.post('/camera/capture')
