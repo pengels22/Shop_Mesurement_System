@@ -23,13 +23,14 @@ MJPEG_LINE_BREAK = b'\r\n'
 
 
 class CameraService:
-    def __init__(self, capture_root: Path, camera_profile: dict, mask_profile: dict | None = None):
+    def __init__(self, capture_root: Path, camera_profile: dict, mask_profile: dict | None = None, calibration_settings: dict | None = None):
         self.capture_root = FileService.ensure_dir(capture_root)
         self.mask_profile = mask_profile or {}
         self.camera_index = int(camera_profile.get('camera_index', DEFAULT_CAMERA_INDEX))
         self.width = int(camera_profile.get('resolution_width', DEFAULT_WIDTH))
         self.height = int(camera_profile.get('resolution_height', DEFAULT_HEIGHT))
         self.fps = int(camera_profile.get('fps', DEFAULT_FPS))
+        self._homography = None
         self._capture = None
         self._lock = threading.Lock()
         self._counter = 0
@@ -60,6 +61,14 @@ class CameraService:
             self._use_undistort = False
             self._map1 = None
             self._map2 = None
+        # Optional planar homography (top-down warp)
+        if calibration_settings:
+            homography = calibration_settings.get('homography')
+            if homography and isinstance(homography, list) and len(homography) == 3 and len(homography[0]) == 3:
+                try:
+                    self._homography = np.array(homography, dtype=np.float64)
+                except Exception:
+                    self._homography = None
         # no color mask by default; masking can be reintroduced later in ImageService
 
     def _open(self) -> cv2.VideoCapture:
@@ -93,6 +102,16 @@ class CameraService:
             frame = frame[y0:y1, x0:x1]
         return frame
 
+    def _apply_homography(self, frame: np.ndarray) -> np.ndarray:
+        if self._homography is None or not isinstance(frame, np.ndarray):
+            return frame
+        try:
+            h, w = frame.shape[:2]
+            warped = cv2.warpPerspective(frame, self._homography, (w, h), flags=cv2.INTER_LINEAR)
+            return warped
+        except Exception:
+            return frame
+
     def get_frame(self) -> np.ndarray:
         capture_device = self._open()
         success, frame = capture_device.read()
@@ -103,6 +122,7 @@ class CameraService:
                 frame = cv2.remap(frame, self._map1, self._map2, interpolation=cv2.INTER_LINEAR)
             except Exception:
                 pass
+        frame = self._apply_homography(frame)
         return self._apply_mask(frame)
 
     def capture_frame(self) -> Tuple[str, Path, int, int]:
@@ -127,6 +147,7 @@ class CameraService:
                 frame = cv2.remap(frame, self._map1, self._map2, interpolation=cv2.INTER_LINEAR)
             except Exception:
                 pass
+        frame = self._apply_homography(frame)
         return frame
 
     def mjpeg_generator(self) -> Generator[bytes, None, None]:

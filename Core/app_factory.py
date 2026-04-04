@@ -60,7 +60,7 @@ def create_app(base_dir: Path | None = None) -> Flask:
     app.config['CSV_SERVICE'] = CsvService()
     app.config['IMAGE_SERVICE'] = ImageService()
     app.config['MEASUREMENT_SERVICE'] = MeasurementService(pixels_per_inch)
-    app.config['CAMERA_SERVICE'] = CameraService(capture_root_directory, camera_profile, mask_profile)
+    app.config['CAMERA_SERVICE'] = CameraService(capture_root_directory, camera_profile, mask_profile, calibration_settings)
 
     app.register_blueprint(page_blueprint)
     app.register_blueprint(api_blueprint)
