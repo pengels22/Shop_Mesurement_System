@@ -6,7 +6,13 @@ import time
 import cv2
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
-from Core.services.camera_service import CameraService
+from Core.services.camera_service import (
+    CameraService,
+    JPEG_EXTENSION,
+    MJPEG_BOUNDARY,
+    MJPEG_CONTENT_TYPE,
+    MJPEG_LINE_BREAK,
+)
 from Core.services.file_service import FileService
 from Core.services.measurement_service import MeasurementService
 from Core.utils.naming import sanitize_name, ui_normalize_spaces
@@ -95,6 +101,10 @@ def camera_stream() -> Response:
 
 def _preview_generator(index: int):
     capture = cv2.VideoCapture(index)
+    if not capture or not capture.isOpened():
+        while True:
+            time.sleep(0.5)
+            yield MJPEG_BOUNDARY + MJPEG_CONTENT_TYPE + b'' + MJPEG_LINE_BREAK
     try:
         while True:
             success, frame = capture.read()
