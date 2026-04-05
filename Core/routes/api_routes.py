@@ -165,7 +165,12 @@ def capture_frame() -> Response:
     payload = request.get_json(silent=True) or {}
     camera_id = ensure_camera_id(request.args.get('camera') or payload.get('camera'))
     camera_service = get_camera_service(camera_id)
-    frame_id, frame_path, image_width, image_height = camera_service.capture_frame()
+    try:
+        frame_id, frame_path, image_width, image_height = camera_service.capture_frame()
+    except Exception as exc:  # pylint: disable=broad-except
+        current_app.logger.error("Camera capture failed for %s: %s", camera_id, exc, exc_info=True)
+        return json_error('capture_failed', f'Camera {camera_id} failed to capture: {exc}', HTTP_SERVER_ERROR)
+
     return jsonify({
         'ok': True,
         'camera': camera_id,
