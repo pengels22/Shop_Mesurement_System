@@ -111,19 +111,29 @@ def capture_frame() -> Response:
 @api_blueprint.get('/camera/devices')
 def list_camera_devices() -> Response:
     max_index = int(request.args.get('max', 5))
+    config_profile = current_app.config['CONFIG_SERVICE'].load_camera_profile()
+    active = {
+        'top': config_profile.get('top', {}).get('camera_index'),
+        'side': config_profile.get('side', {}).get('camera_index'),
+    }
+    active_indices = {idx for idx in (active['top'], active['side']) if idx is not None}
     devices = []
     for index in range(max_index + 1):
         cap = cv2.VideoCapture(index)
         available = cap is not None and cap.isOpened()
         if cap:
             cap.release()
-        if available:
-            devices.append({'index': index, 'label': f'Camera {index}'})
-    profile = current_app.config['CONFIG_SERVICE'].load_camera_profile()
-    active = {
-        'top': profile.get('top', {}).get('camera_index'),
-        'side': profile.get('side', {}).get('camera_index'),
-    }
+        devices.append({
+            'index': index,
+            'label': f'Camera {index}',
+            'available': bool(available or index in active_indices),
+        })
+
+    # Ensure active indices are present even if beyond max_index
+    for idx in active_indices:
+        if not any(device['index'] == idx for device in devices):
+            devices.append({'index': idx, 'label': f'Camera {idx}', 'available': True})
+
     return jsonify({'ok': True, 'devices': devices, 'active': active})
 
 
