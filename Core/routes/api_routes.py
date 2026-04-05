@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
 
 import cv2
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
@@ -90,6 +91,34 @@ def camera_stream() -> Response:
     camera_id = ensure_camera_id(request.args.get('camera'))
     camera_service = get_camera_service(camera_id)
     return Response(camera_service.mjpeg_generator(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+def _preview_generator(index: int):
+    capture = cv2.VideoCapture(index)
+    try:
+        while True:
+            success, frame = capture.read()
+            if not success or frame is None:
+                time.sleep(0.2)
+                continue
+            ok, encoded = cv2.imencode(JPEG_EXTENSION, frame)
+            if not ok:
+                continue
+            jpg_bytes = encoded.tobytes()
+            yield MJPEG_BOUNDARY + MJPEG_CONTENT_TYPE + jpg_bytes + MJPEG_LINE_BREAK
+    finally:
+        capture.release()
+
+
+@api_blueprint.get('/camera/preview')
+def camera_preview() -> Response:
+    try:
+        index = int(request.args.get('index', -1))
+    except ValueError:
+        return json_error('validation_error', 'index must be an integer', HTTP_BAD_REQUEST)
+    if index < 0:
+        return json_error('validation_error', 'index must be >= 0', HTTP_BAD_REQUEST)
+    return Response(_preview_generator(index), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 @api_blueprint.post('/camera/capture')

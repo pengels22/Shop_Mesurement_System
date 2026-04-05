@@ -632,6 +632,12 @@
     }
 
     cameraImage.addEventListener('load', updateCanvasSize);
+    cameraImage.addEventListener('error', () => {
+        showToast('Camera stream unavailable. Retrying...', 'error');
+        window.setTimeout(() => {
+            cameraImage.src = `/api/camera/stream?camera=${state.camera}&ts=${Date.now()}`;
+        }, 1000);
+    });
     window.addEventListener('resize', updateCanvasSize);
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointermove', onPointerMove);
@@ -675,6 +681,8 @@
     updateMeasurementList();
     loadProject();
     loadCalibration();
+    // ensure initial live view uses explicit camera param and cache-buster
+    resumeLiveView('top');
 
     function cancelPendingMeasurementPoint() {
     if (!state.clickStartCanvas && !state.pendingStartCanvas) {

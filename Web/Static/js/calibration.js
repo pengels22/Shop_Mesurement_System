@@ -8,6 +8,10 @@
     const refreshDevicesButton = document.getElementById('refresh-devices-button');
     const saveCameraButton = document.getElementById('save-camera-button');
     const cameraStatus = document.getElementById('camera-status');
+    const topPreview = document.getElementById('top-preview');
+    const sidePreview = document.getElementById('side-preview');
+    const refreshTopPreview = document.getElementById('refresh-top-preview');
+    const refreshSidePreview = document.getElementById('refresh-side-preview');
 
     const topPpiInput = document.getElementById('top-ppi-input');
     const sidePpiInput = document.getElementById('side-ppi-input');
@@ -62,6 +66,7 @@
             }
             cameraStatus.textContent = `Found ${devices.length} camera(s).`;
             syncInputsFromSelects();
+            refreshPreviews();
         } catch (error) {
             cameraStatus.textContent = error.message;
             showToast(error.message, 'error');
@@ -86,6 +91,7 @@
             if ([...sideSelect.options].some((opt) => Number(opt.value) === sideIndex)) {
                 sideSelect.value = String(sideIndex);
             }
+            refreshPreviews();
         } catch (error) {
             showToast(error.message, 'error');
             cameraStatus.textContent = error.message;
@@ -149,6 +155,30 @@
     });
     calibrateTopButton.addEventListener('click', () => applyCalibration('top'));
     calibrateSideButton.addEventListener('click', () => applyCalibration('side'));
+
+    function setPreview(imgEl, index) {
+        if (!imgEl || index === undefined || index === null || index === '') {
+            return;
+        }
+        const ts = Date.now();
+        imgEl.src = `/api/camera/preview?index=${index}&ts=${ts}`;
+    }
+
+    function refreshPreviews() {
+        const topIndex = topIndexInput.value !== '' ? topIndexInput.value : topSelect.value;
+        const sideIndex = sideIndexInput.value !== '' ? sideIndexInput.value : sideSelect.value;
+        setPreview(topPreview, topIndex);
+        setPreview(sidePreview, sideIndex);
+    }
+
+    refreshTopPreview.addEventListener('click', refreshPreviews);
+    refreshSidePreview.addEventListener('click', refreshPreviews);
+
+    [topPreview, sidePreview].forEach((imgEl) => {
+        imgEl?.addEventListener('error', () => {
+            imgEl.alt = 'Preview not available (camera busy or index invalid)';
+        });
+    });
 
     // Initial load
     loadDevices();

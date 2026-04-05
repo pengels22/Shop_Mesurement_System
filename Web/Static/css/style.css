@@ -56,6 +56,24 @@ code {
 .page-grid { display: grid; gap: 24px; }
 .two-col-home { grid-template-columns: 1.1fr 0.9fr; }
 .calibration-grid { grid-template-columns: 1fr; max-width: 1100px; }
+.preview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+.preview-frame {
+    background: #0f172a;
+    border-radius: 12px;
+    min-height: 220px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+}
+.preview-frame img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
 
 .card {
     background: var(--panel);
