@@ -19,6 +19,11 @@
     const calibrateSideButton = document.getElementById('calibrate-side-button');
     const calibrationStatus = document.getElementById('calibration-status');
 
+    // Bail out quietly if the calibration page isn't loaded
+    if (!topSelect || !sideSelect) {
+        return;
+    }
+
     function optionMarkup(device, activeTop, activeSide) {
         const suffix = device.available ? '' : ' (in use/unavailable)';
         const activeTag = device.index === activeTop || device.index === activeSide ? ' (active)' : '';
@@ -38,9 +43,9 @@
         try {
             cameraStatus.textContent = 'Scanning for USB cameras...';
             const payload = await apiFetch('/api/camera/devices');
-            const activeTop = payload.active?.top;
-            const activeSide = payload.active?.side;
-            const devices = payload.devices || [];
+            const activeTop = (payload.active && payload.active.top) !== undefined ? payload.active.top : undefined;
+            const activeSide = (payload.active && payload.active.side) !== undefined ? payload.active.side : undefined;
+            const devices = Array.isArray(payload.devices) ? payload.devices : [];
 
             if (!devices.length && (activeTop !== undefined || activeSide !== undefined)) {
                 // Fallback to active config when probing failed (e.g., already in use)
@@ -103,21 +108,24 @@
             calibrationStatus.textContent = 'Loading calibration values...';
             const payload = await apiFetch('/api/calibration');
             const cal = payload.calibration || {};
-            if (cal.top?.pixels_per_inch) {
+            if (topPpiInput && cal.top && cal.top.pixels_per_inch) {
                 topPpiInput.value = cal.top.pixels_per_inch;
             }
-            if (cal.side?.pixels_per_inch) {
+            if (sidePpiInput && cal.side && cal.side.pixels_per_inch) {
                 sidePpiInput.value = cal.side.pixels_per_inch;
             }
-            calibrationStatus.textContent = `Top: ${topPpiInput.value || '—'} PPI, Side: ${sidePpiInput.value || '—'} PPI`;
+            if (calibrationStatus) {
+                calibrationStatus.textContent = `Top: ${topPpiInput.value || '—'} PPI, Side: ${sidePpiInput.value || '—'} PPI`;
+            }
         } catch (error) {
-            calibrationStatus.textContent = error.message;
+            if (calibrationStatus) calibrationStatus.textContent = error.message;
             showToast(error.message, 'error');
         }
     }
 
     async function applyCalibration(camera) {
         const input = camera === 'top' ? topPpiInput : sidePpiInput;
+        if (!input) return;
         const ppi = Number(input.value);
         if (!ppi || ppi <= 0) {
             showToast('Enter a valid pixels-per-inch value.', 'error');
@@ -137,24 +145,32 @@
         }
     }
 
-    refreshDevicesButton.addEventListener('click', loadDevices);
-    saveCameraButton.addEventListener('click', saveCameraSelection);
+    if (refreshDevicesButton) refreshDevicesButton.addEventListener('click', loadDevices);
+    if (saveCameraButton) saveCameraButton.addEventListener('click', saveCameraSelection);
     topSelect.addEventListener('change', syncInputsFromSelects);
     sideSelect.addEventListener('change', syncInputsFromSelects);
-    topIndexInput.addEventListener('input', () => {
+    topIndexInput.addEventListener('input', function () {
         const value = topIndexInput.value;
         if (value === '') return;
-        const opt = [...topSelect.options].find((o) => o.value === value);
-        if (opt) topSelect.value = value;
+        for (let i = 0; i < topSelect.options.length; i += 1) {
+            if (topSelect.options[i].value === value) {
+                topSelect.value = value;
+                break;
+            }
+        }
     });
-    sideIndexInput.addEventListener('input', () => {
+    sideIndexInput.addEventListener('input', function () {
         const value = sideIndexInput.value;
         if (value === '') return;
-        const opt = [...sideSelect.options].find((o) => o.value === value);
-        if (opt) sideSelect.value = value;
+        for (let i = 0; i < sideSelect.options.length; i += 1) {
+            if (sideSelect.options[i].value === value) {
+                sideSelect.value = value;
+                break;
+            }
+        }
     });
-    calibrateTopButton.addEventListener('click', () => applyCalibration('top'));
-    calibrateSideButton.addEventListener('click', () => applyCalibration('side'));
+    if (calibrateTopButton) calibrateTopButton.addEventListener('click', function () { applyCalibration('top'); });
+    if (calibrateSideButton) calibrateSideButton.addEventListener('click', function () { applyCalibration('side'); });
 
     function setPreview(imgEl, index) {
         if (!imgEl || index === undefined || index === null || index === '') {
@@ -171,11 +187,12 @@
         setPreview(sidePreview, sideIndex);
     }
 
-    refreshTopPreview.addEventListener('click', refreshPreviews);
-    refreshSidePreview.addEventListener('click', refreshPreviews);
+    if (refreshTopPreview) refreshTopPreview.addEventListener('click', refreshPreviews);
+    if (refreshSidePreview) refreshSidePreview.addEventListener('click', refreshPreviews);
 
-    [topPreview, sidePreview].forEach((imgEl) => {
-        imgEl?.addEventListener('error', () => {
+    [topPreview, sidePreview].forEach(function (imgEl) {
+        if (!imgEl) return;
+        imgEl.addEventListener('error', function () {
             imgEl.alt = 'Preview not available (camera busy or index invalid)';
         });
     });
