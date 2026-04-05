@@ -71,7 +71,6 @@
             }
             cameraStatus.textContent = `Found ${devices.length} camera(s).`;
             syncInputsFromSelects();
-            refreshPreviews();
         } catch (error) {
             cameraStatus.textContent = error.message;
             showToast(error.message, 'error');
@@ -96,7 +95,6 @@
             if ([...sideSelect.options].some((opt) => Number(opt.value) === sideIndex)) {
                 sideSelect.value = String(sideIndex);
             }
-            refreshPreviews();
         } catch (error) {
             showToast(error.message, 'error');
             cameraStatus.textContent = error.message;
