@@ -30,6 +30,7 @@ class CameraService:
         self.width = int(camera_profile.get('resolution_width', DEFAULT_WIDTH))
         self.height = int(camera_profile.get('resolution_height', DEFAULT_HEIGHT))
         self.fps = int(camera_profile.get('fps', DEFAULT_FPS))
+        self.backend_code = self._resolve_backend(camera_profile.get('backend'))
         self._homography = None
         self._capture = None
         self._lock = threading.Lock()
@@ -71,12 +72,49 @@ class CameraService:
                     self._homography = None
         # no color mask by default; masking can be reintroduced later in ImageService
 
-    def _open(self) -> cv2.VideoCapture:
+    @staticmethod
+    def _resolve_backend(backend_value):
+        """Map friendly backend names to OpenCV constants."""
+        if backend_value is None:
+            return None
+        if isinstance(backend_value, int):
+            return backend_value
+        if isinstance(backend_value, str):
+            key = backend_value.strip().lower()
+            mapping = {
+                'avfoundation': getattr(cv2, 'CAP_AVFOUNDATION', None),
+                'dshow': getattr(cv2, 'CAP_DSHOW', None),
+                'v4l2': getattr(cv2, 'CAP_V4L2', None),
+                'msmf': getattr(cv2, 'CAP_MSMF', None),
+                'any': getattr(cv2, 'CAP_ANY', None),
+            }
+            return mapping.get(key)
+        return None
+
+    def _create_capture(self):
+        cap = None
+        if self.backend_code is not None:
+            cap = cv2.VideoCapture(self.camera_index, self.backend_code)
+        if cap is None or not cap.isOpened():
+            cap = cv2.VideoCapture(self.camera_index)
+        if cap is None or not cap.isOpened():
+            return None
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        cap.set(cv2.CAP_PROP_FPS, self.fps)
+        return cap
+
+    def _open(self, force_new: bool = False) -> cv2.VideoCapture:
+        if force_new:
+            try:
+                if self._capture is not None:
+                    self._capture.release()
+            except Exception:
+                pass
+            self._capture = None
+
         if self._capture is None or not self._capture.isOpened():
-            self._capture = cv2.VideoCapture(self.camera_index)
-            self._capture.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-            self._capture.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-            self._capture.set(cv2.CAP_PROP_FPS, self.fps)
+            self._capture = self._create_capture()
         return self._capture
 
     def _apply_mask(self, frame: np.ndarray) -> np.ndarray:
@@ -113,10 +151,17 @@ class CameraService:
             return frame
 
     def get_frame(self) -> np.ndarray:
-        capture_device = self._open()
-        success, frame = capture_device.read()
-        if not success or frame is None:
-            raise RuntimeError('Could not read frame from camera')
+        for attempt in range(3):
+            capture_device = self._open(force_new=attempt > 0)
+            if capture_device is None or not capture_device.isOpened():
+                time.sleep(0.1)
+                continue
+            success, frame = capture_device.read()
+            if success and frame is not None:
+                break
+            time.sleep(0.1)
+        else:
+            raise RuntimeError(f'Could not read frame from camera index {self.camera_index} after retries')
         if self._use_undistort and self._map1 is not None and self._map2 is not None:
             try:
                 frame = cv2.remap(frame, self._map1, self._map2, interpolation=cv2.INTER_LINEAR)
