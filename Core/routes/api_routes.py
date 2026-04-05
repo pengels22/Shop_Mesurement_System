@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import cv2
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
+from Core.services.camera_service import CameraService
 from Core.services.file_service import FileService
+from Core.services.measurement_service import MeasurementService
 from Core.utils.naming import sanitize_name, ui_normalize_spaces
 
 HTTP_BAD_REQUEST = 400
@@ -12,6 +15,7 @@ HTTP_NOT_FOUND = 404
 HTTP_CONFLICT = 409
 HTTP_SERVER_ERROR = 500
 DEFAULT_MEASUREMENT_TYPE = 'simple'
+DEFAULT_PIXELS_PER_INCH = 33.0
 
 api_blueprint = Blueprint('api', __name__, url_prefix='/api')
 
@@ -32,8 +36,42 @@ def get_measurement_service():
     return current_app.config['MEASUREMENT_SERVICE']
 
 
-def get_camera_service():
-    return current_app.config['CAMERA_SERVICE']
+def get_camera_services() -> dict:
+    return current_app.config.get('CAMERA_SERVICES') or {'top': current_app.config['CAMERA_SERVICE']}
+
+
+def ensure_camera_id(camera_id: str | None) -> str:
+    if camera_id in ('top', 'side'):
+        return camera_id
+    return 'top'
+
+
+def get_camera_service(camera_id: str | None = 'top'):
+    camera_id = ensure_camera_id(camera_id)
+    services = get_camera_services()
+    return services.get(camera_id) or services.get('top')
+
+
+def rebuild_runtime_services() -> None:
+    """Reload camera profile + calibration and refresh runtime services so changes apply immediately."""
+    config_service = current_app.config['CONFIG_SERVICE']
+    capture_root = Path(current_app.config['CAPTURE_ROOT_DIRECTORY'])
+    mask_profile = config_service.load_mask()
+    camera_profile = config_service.load_camera_profile()
+    calibration_settings = config_service.load_calibration()
+
+    camera_services = {
+        'top': CameraService(capture_root, camera_profile.get('top', {}), mask_profile, calibration_settings.get('top')),
+        'side': CameraService(capture_root, camera_profile.get('side', {}), mask_profile, calibration_settings.get('side')),
+    }
+    current_app.config['CAMERA_SERVICES'] = camera_services
+    current_app.config['CAMERA_SERVICE'] = camera_services['top']
+
+    ppi_map = {
+        'top': float(calibration_settings.get('top', {}).get('pixels_per_inch', calibration_settings.get('pixels_per_inch', DEFAULT_PIXELS_PER_INCH))),
+        'side': float(calibration_settings.get('side', {}).get('pixels_per_inch', calibration_settings.get('pixels_per_inch', DEFAULT_PIXELS_PER_INCH))),
+    }
+    current_app.config['MEASUREMENT_SERVICE'] = MeasurementService(ppi_map)
 
 
 def json_error(status: str, message: str, http_code: int, **extra_fields) -> tuple[Response, int]:
@@ -49,16 +87,20 @@ def health() -> Response:
 
 @api_blueprint.get('/camera/stream')
 def camera_stream() -> Response:
-    camera_service = get_camera_service()
+    camera_id = ensure_camera_id(request.args.get('camera'))
+    camera_service = get_camera_service(camera_id)
     return Response(camera_service.mjpeg_generator(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 @api_blueprint.post('/camera/capture')
 def capture_frame() -> Response:
-    camera_service = get_camera_service()
+    payload = request.get_json(silent=True) or {}
+    camera_id = ensure_camera_id(request.args.get('camera') or payload.get('camera'))
+    camera_service = get_camera_service(camera_id)
     frame_id, frame_path, image_width, image_height = camera_service.capture_frame()
     return jsonify({
         'ok': True,
+        'camera': camera_id,
         'image_frame_id': frame_id,
         'image_path': str(frame_path),
         'image_width': image_width,
@@ -66,11 +108,87 @@ def capture_frame() -> Response:
     })
 
 
+@api_blueprint.get('/camera/devices')
+def list_camera_devices() -> Response:
+    max_index = int(request.args.get('max', 5))
+    devices = []
+    for index in range(max_index + 1):
+        cap = cv2.VideoCapture(index)
+        available = cap is not None and cap.isOpened()
+        if cap:
+            cap.release()
+        if available:
+            devices.append({'index': index, 'label': f'Camera {index}'})
+    profile = current_app.config['CONFIG_SERVICE'].load_camera_profile()
+    active = {
+        'top': profile.get('top', {}).get('camera_index'),
+        'side': profile.get('side', {}).get('camera_index'),
+    }
+    return jsonify({'ok': True, 'devices': devices, 'active': active})
+
+
+@api_blueprint.get('/camera/profile')
+def get_camera_profile() -> Response:
+    profile = current_app.config['CONFIG_SERVICE'].load_camera_profile()
+    return jsonify({'ok': True, 'profile': profile})
+
+
+@api_blueprint.post('/camera/profile')
+def update_camera_profile() -> Response:
+    payload = request.get_json(force=True)
+    config_service = current_app.config['CONFIG_SERVICE']
+    profile = config_service.load_camera_profile()
+
+    if 'top_index' in payload:
+        profile.setdefault('top', {})['camera_index'] = int(payload['top_index'])
+    if 'side_index' in payload:
+        profile.setdefault('side', {})['camera_index'] = int(payload['side_index'])
+
+    config_service.save_camera_profile(profile)
+    rebuild_runtime_services()
+    return jsonify({'ok': True, 'profile': profile})
+
+
+@api_blueprint.get('/calibration')
+def get_calibration() -> Response:
+    calibration = current_app.config['CONFIG_SERVICE'].load_calibration()
+    return jsonify({'ok': True, 'calibration': calibration})
+
+
+@api_blueprint.post('/calibration')
+def update_calibration() -> Response:
+    payload = request.get_json(force=True)
+    camera_id = ensure_camera_id(payload.get('camera'))
+    if camera_id not in ('top', 'side'):
+        return json_error('validation_error', 'camera must be top or side', HTTP_BAD_REQUEST)
+
+    config_service = current_app.config['CONFIG_SERVICE']
+    calibration = config_service.load_calibration()
+    camera_cal = calibration.get(camera_id, {})
+
+    if 'pixels_per_inch' in payload:
+        ppi = float(payload['pixels_per_inch'])
+        if ppi <= 0:
+            return json_error('validation_error', 'pixels_per_inch must be positive', HTTP_BAD_REQUEST)
+        camera_cal['pixels_per_inch'] = ppi
+
+    for key in ('camera_matrix', 'dist_coeffs', 'homography'):
+        if key in payload:
+            camera_cal[key] = payload[key]
+
+    calibration[camera_id] = camera_cal
+    config_service.save_calibration(calibration)
+    rebuild_runtime_services()
+
+    return jsonify({'ok': True, 'calibration': calibration})
+
+
 
 
 @api_blueprint.get('/camera/capture/<frame_id>')
 def get_captured_frame(frame_id: str) -> Response:
-    camera_service = get_camera_service()
+    camera_id = ensure_camera_id(request.args.get('camera'))
+    camera_service = get_camera_service(camera_id)
     try:
         frame_path = camera_service.capture_root / f'{frame_id}.png'
     except Exception:
@@ -197,7 +315,8 @@ def save_part() -> Response:
     csv_service = get_csv_service()
     image_service = get_image_service()
     measurement_service = get_measurement_service()
-    camera_service = get_camera_service()
+    camera_id = ensure_camera_id(payload.get('camera') or payload.get('camera_id'))
+    camera_service = get_camera_service(camera_id)
 
     active_project = project_service.get_active_project()
     if not active_project:
@@ -250,7 +369,7 @@ def save_part() -> Response:
         image_height, image_width = frame.shape[:2]
 
     try:
-        validated_measurements, validation_errors = measurement_service.validate_measurements(measurements, image_width, image_height)
+        validated_measurements, validation_errors = measurement_service.validate_measurements(measurements, image_width, image_height, camera_id=camera_id)
     except ValueError as exc:
         return json_error('validation_error', str(exc), HTTP_BAD_REQUEST)
 
@@ -272,6 +391,7 @@ def save_part() -> Response:
         'file_stem': file_stem,
         'image_filename': image_filename,
         'measurement_type': measurement_type,
+        'camera': camera_id,
         'measurements': validated_measurements,
     }
     FileService.write_json(json_path, part_payload)
@@ -295,6 +415,7 @@ def save_part() -> Response:
         'part_name': part_name,
         'file_stem': file_stem,
         'image_filename': image_filename,
+        'camera': camera_id,
         'json_filename': json_filename,
         'csv_filename': active_project['csv_filename'],
         'measurement_count': len(validated_measurements),

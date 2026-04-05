@@ -2,24 +2,56 @@
 {% block title %}Calibration | Shop Measurement System{% endblock %}
 {% block page_id %}calibration{% endblock %}
 {% block content %}
-<section class="page-grid two-col-home">
+<section class="page-grid calibration-grid">
     <section class="card">
-        <h2>Calibration Summary</h2>
-        <p class="muted">Current build uses the backend calibration profile for saved measurements.</p>
-        <ul class="info-list">
-            <li>Measurements are validated at a minimum of 1 mm.</li>
-            <li>Display and save values are in inches only.</li>
-            <li>Masking and perspective files are stored in <code>Core/config</code>.</li>
-        </ul>
+        <div class="card-header-row small-gap">
+            <div>
+                <h2>Camera Selection</h2>
+                <p class="muted">Pick which USB camera is used for the top view and the side view.</p>
+            </div>
+            <div class="toolbar-row">
+                <button id="refresh-devices-button" class="secondary-button" type="button">Refresh Devices</button>
+                <button id="save-camera-button" class="primary-button" type="button">Save Cameras</button>
+            </div>
+        </div>
+        <div class="form-grid">
+            <label>
+                <span>Top Camera</span>
+                <select id="top-camera-select"></select>
+            </label>
+            <label>
+                <span>Side Camera</span>
+                <select id="side-camera-select"></select>
+            </label>
+        </div>
+        <div id="camera-status" class="status-box top-gap">Loading camera list...</div>
     </section>
+
     <section class="card">
-        <h2>Current Workflow</h2>
-        <ol class="info-list ordered">
-            <li>Open the measurement page and capture a frame.</li>
-            <li>Add or adjust X, Y, Z, and Mx lines.</li>
-            <li>Save the part into the active project.</li>
-            <li>Review saved parts in the parts browser.</li>
-        </ol>
+        <div class="card-header-row small-gap">
+            <div>
+                <h2>Calibration</h2>
+                <p class="muted">Update pixels-per-inch and lens parameters per camera. Use the buttons below to apply new calibration values.</p>
+            </div>
+        </div>
+        <div class="form-grid">
+            <label>
+                <span>Top Camera Pixels Per Inch</span>
+                <input id="top-ppi-input" type="number" step="0.01" min="1" placeholder="33.0">
+            </label>
+            <label>
+                <span>Side Camera Pixels Per Inch</span>
+                <input id="side-ppi-input" type="number" step="0.01" min="1" placeholder="33.0">
+            </label>
+        </div>
+        <div class="toolbar-row top-gap">
+            <button id="calibrate-top-button" class="primary-button" type="button">Calibrate Top Camera</button>
+            <button id="calibrate-side-button" class="primary-button" type="button">Calibrate Side Camera</button>
+        </div>
+        <div id="calibration-status" class="status-box top-gap">Calibration values not loaded yet.</div>
     </section>
 </section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/calibration.js') }}"></script>
 {% endblock %}

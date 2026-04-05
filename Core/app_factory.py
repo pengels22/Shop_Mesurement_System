@@ -49,18 +49,28 @@ def create_app(base_dir: Path | None = None) -> Flask:
     camera_profile = config_service.load_camera_profile()
     mask_profile = config_service.load_mask()
 
-    pixels_per_inch = float(
-        calibration_settings.get('pixels_per_inch', DEFAULT_PIXELS_PER_INCH)
-        or DEFAULT_PIXELS_PER_INCH
-    )
+    # Build multi-camera services (top + side) plus measurement service with per-camera PPI
+    camera_services = {
+        'top': CameraService(capture_root_directory, camera_profile.get('top', {}), mask_profile, calibration_settings.get('top')),
+        'side': CameraService(capture_root_directory, camera_profile.get('side', {}), mask_profile, calibration_settings.get('side')),
+    }
+
+    pixels_per_inch_map = {
+        'top': float(calibration_settings.get('top', {}).get('pixels_per_inch', DEFAULT_PIXELS_PER_INCH) or DEFAULT_PIXELS_PER_INCH),
+        'side': float(calibration_settings.get('side', {}).get('pixels_per_inch', DEFAULT_PIXELS_PER_INCH) or DEFAULT_PIXELS_PER_INCH),
+    }
 
     app.config['BASE_DIR'] = str(resolved_project_root)
+    app.config['CONFIG_DIRECTORY'] = str(config_directory)
+    app.config['CAPTURE_ROOT_DIRECTORY'] = str(capture_root_directory)
     app.config['CONFIG_SERVICE'] = config_service
     app.config['PROJECT_SERVICE'] = ProjectService(projects_root_directory)
     app.config['CSV_SERVICE'] = CsvService()
     app.config['IMAGE_SERVICE'] = ImageService()
-    app.config['MEASUREMENT_SERVICE'] = MeasurementService(pixels_per_inch)
-    app.config['CAMERA_SERVICE'] = CameraService(capture_root_directory, camera_profile, mask_profile, calibration_settings)
+    app.config['MEASUREMENT_SERVICE'] = MeasurementService(pixels_per_inch_map)
+    # Backwards-compat alias pointing to top camera
+    app.config['CAMERA_SERVICE'] = camera_services['top']
+    app.config['CAMERA_SERVICES'] = camera_services
 
     app.register_blueprint(page_blueprint)
     app.register_blueprint(api_blueprint)

@@ -35,6 +35,8 @@
         selectedLabel: null,
         activeDragTarget: null,
         clickStartCanvas: null,
+        camera: 'top',
+        pixelsPerInch: { top: 33.0, side: 33.0 },
     };
 
     const cameraImage = document.getElementById('camera-image');
@@ -44,6 +46,7 @@
     const projectNameChip = document.getElementById('measurement-project-name');
     const partNameInput = document.getElementById('part-name-input');
     const modeSelect = document.getElementById('measurement-mode-select');
+    const cameraSelect = document.getElementById('camera-select');
     const measurementList = document.getElementById('measurement-list');
     const statusBox = document.getElementById('measurement-status');
     const captureButton = document.getElementById('capture-button');
@@ -142,7 +145,8 @@
         const dx = measurement.end_px.x - measurement.start_px.x;
         const dy = measurement.end_px.y - measurement.start_px.y;
         const pixelLength = Math.hypot(dx, dy);
-        return pixelLength / 32.9;
+        const ppi = state.pixelsPerInch[state.camera] || 32.9;
+        return pixelLength / ppi;
     }
 
     function ensureUniqueAxis(label) {
@@ -292,7 +296,8 @@
         const startImage = toImagePoint(startCanvas);
         const endImage = toImagePoint(lockedEnd);
         const pixelLength = Math.hypot(endImage.x - startImage.x, endImage.y - startImage.y);
-        const minPixels = (1 / 25.4) * 100.0;
+        const pixelsPerMm = (state.pixelsPerInch[state.camera] || 32.9) / 25.4;
+        const minPixels = pixelsPerMm; // 1 mm threshold
         if (pixelLength < minPixels) {
             showToast('Measurement must be at least 1 mm', 'error');
             setStatus('Measurement rejected because it is shorter than 1 mm.');
@@ -467,20 +472,26 @@
 
     async function captureFrame() {
         try {
-            const payload = await apiFetch('/api/camera/capture', { method: 'POST' });
+            const payload = await apiFetch(`/api/camera/capture?camera=${state.camera}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ camera: state.camera }) });
             state.frameId = payload.image_frame_id;
             state.frameWidth = payload.image_width;
             state.frameHeight = payload.image_height;
+            state.camera = payload.camera || state.camera;
             state.liveView = false;
-            cameraImage.src = `/api/camera/capture/${payload.image_frame_id}`;
-            setStatus(`Captured ${payload.image_frame_id}`);
+            state.measurements = [];
+            state.selectedLabel = null;
+            cameraImage.src = `/api/camera/capture/${payload.image_frame_id}?camera=${state.camera}&ts=${Date.now()}`;
+            updateMeasurementList();
+            drawCanvas();
+            setStatus(`Captured ${payload.image_frame_id} from ${state.camera} camera.`);
         } catch (error) {
             showToast(error.message, 'error');
             setStatus(error.message);
         }
     }
 
-    function resumeLiveView() {
+    function resumeLiveView(cameraId = state.camera) {
+        state.camera = cameraId;
         state.liveView = true;
         state.frameId = null;
         state.measurements = [];
@@ -488,10 +499,10 @@
         state.drawingMode = null;
         state.pendingStartCanvas = null;
         state.clickStartCanvas = null;
-        cameraImage.src = `/api/camera/stream?ts=${Date.now()}`;
+        cameraImage.src = `/api/camera/stream?camera=${state.camera}&ts=${Date.now()}`;
         updateMeasurementList();
         drawCanvas();
-        setStatus('Returned to live view.');
+        setStatus(`Returned to live view (${state.camera} camera).`);
     }
 
     async function savePart() {
@@ -520,6 +531,7 @@
             image_frame_id: state.frameId,
             image_width: state.frameWidth,
             image_height: state.frameHeight,
+            camera: state.camera,
             measurement_type: modeSelect.value,
             measurements: state.measurements.map((measurement) => ({
                 label: measurement.label,
@@ -575,6 +587,20 @@
         }
     }
 
+    async function loadCalibration() {
+        try {
+            const payload = await apiFetch('/api/calibration');
+            const cal = payload.calibration || {};
+            state.pixelsPerInch = {
+                top: Number(cal.top?.pixels_per_inch || 33.0),
+                side: Number(cal.side?.pixels_per_inch || 33.0),
+            };
+            setStatus(`Calibration loaded (Top: ${state.pixelsPerInch.top.toFixed(2)} PPI, Side: ${state.pixelsPerInch.side.toFixed(2)} PPI).`);
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
+    }
+
     function clearAllMeasurements() {
         state.measurements = [];
         state.selectedLabel = null;
@@ -593,6 +619,18 @@
         verticalLockButton.textContent = state.interactionLock === 'vertical' ? 'Vertical Lock On' : 'Vertical Lock';
     }
 
+    function setActiveCamera(cameraId) {
+        const normalized = cameraId === 'side' ? 'side' : 'top';
+        state.camera = normalized;
+        state.measurements = [];
+        state.selectedLabel = null;
+        state.drawingMode = null;
+        state.frameId = null;
+        state.liveView = true;
+        setStatus(`Switched to ${normalized} camera. Live view ready.`);
+        resumeLiveView(normalized);
+    }
+
     cameraImage.addEventListener('load', updateCanvasSize);
     window.addEventListener('resize', updateCanvasSize);
     canvas.addEventListener('pointerdown', onPointerDown);
@@ -602,9 +640,28 @@
 
     captureButton.addEventListener('click', captureFrame);
     resumeLiveButton.addEventListener('click', resumeLiveView);
-    addXButton.addEventListener('click', () => armMeasurement('X'));
-    addYButton.addEventListener('click', () => armMeasurement('Y'));
-    addZButton.addEventListener('click', () => armMeasurement('Z'));
+    addXButton.addEventListener('click', () => {
+        if (state.camera !== 'top') {
+            setActiveCamera('top');
+            cameraSelect.value = 'top';
+            showToast('Switched to top camera for X measurement.', 'info');
+        }
+        armMeasurement('X');
+    });
+    addYButton.addEventListener('click', () => {
+        if (state.camera !== 'top') {
+            setActiveCamera('top');
+            cameraSelect.value = 'top';
+            showToast('Switched to top camera for Y measurement.', 'info');
+        }
+        armMeasurement('Y');
+    });
+    addZButton.addEventListener('click', () => {
+        setActiveCamera('side');
+        cameraSelect.value = 'side';
+        armMeasurement('Z');
+        showToast('Using side camera for Z measurement.', 'info');
+    });
     addMButton.addEventListener('click', () => armMeasurement(`M${extraMeasurementCount() + 1}`));
     horizontalLockButton.addEventListener('click', () => setLock('horizontal'));
     verticalLockButton.addEventListener('click', () => setLock('vertical'));
@@ -613,10 +670,13 @@
     partNameInput.addEventListener('input', () => {
         partNameInput.value = normalizeSpaces(partNameInput.value);
     });
+    cameraSelect.addEventListener('change', (event) => setActiveCamera(event.target.value));
 
     updateMeasurementList();
     loadProject();
-function cancelPendingMeasurementPoint() {
+    loadCalibration();
+
+    function cancelPendingMeasurementPoint() {
     if (!state.clickStartCanvas && !state.pendingStartCanvas) {
         return;
     }

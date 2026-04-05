@@ -16,10 +16,27 @@ M_LABEL_PATTERN = r'M(\d+)'
 
 
 class MeasurementService:
-    def __init__(self, pixels_per_inch: float):
-        if pixels_per_inch <= 0:
-            raise ValueError('pixels_per_inch must be positive')
-        self.pixels_per_inch = float(pixels_per_inch)
+    def __init__(self, pixels_per_inch: float | Dict[str, float]):
+        # Accept either a single PPI value or a mapping per camera (e.g., {'top': 33, 'side': 40})
+        if isinstance(pixels_per_inch, dict):
+            self.pixels_per_inch = {}
+            for camera_id, value in pixels_per_inch.items():
+                numeric_value = float(value)
+                if numeric_value <= 0:
+                    raise ValueError('pixels_per_inch must be positive')
+                self.pixels_per_inch[camera_id] = numeric_value
+            # guarantee defaults exist for top/side keys even if omitted
+            if 'top' not in self.pixels_per_inch:
+                self.pixels_per_inch['top'] = next(iter(self.pixels_per_inch.values()))
+            if 'side' not in self.pixels_per_inch:
+                self.pixels_per_inch['side'] = self.pixels_per_inch['top']
+        else:
+            if pixels_per_inch <= 0:
+                raise ValueError('pixels_per_inch must be positive')
+            self.pixels_per_inch = {'top': float(pixels_per_inch), 'side': float(pixels_per_inch)}
+
+    def get_pixels_per_inch(self, camera_id: str = 'top') -> float:
+        return float(self.pixels_per_inch.get(camera_id, self.pixels_per_inch.get('top', 33.0)))
 
     def expected_color(self, label: str) -> str:
         if label in COLOR_MAP:
@@ -48,7 +65,7 @@ class MeasurementService:
         fixed_measurements = sorted(fixed_measurements, key=lambda item: axis_order[item['label']])
         return fixed_measurements + extra_measurements
 
-    def validate_measurements(self, measurements: List[Dict], image_width: int, image_height: int) -> Tuple[List[Dict], List[Dict]]:
+    def validate_measurements(self, measurements: List[Dict], image_width: int, image_height: int, camera_id: str = 'top') -> Tuple[List[Dict], List[Dict]]:
         if not measurements:
             raise ValueError('At least one measurement is required')
 
@@ -56,6 +73,7 @@ class MeasurementService:
         processed_measurements: List[Dict] = []
         validation_errors: List[Dict] = []
         seen_axis_labels = set()
+        pixels_per_inch = self.get_pixels_per_inch(camera_id)
 
         for measurement_index, measurement in enumerate(normalized_measurements):
             label = measurement['label']
@@ -85,7 +103,7 @@ class MeasurementService:
                 continue
 
             pixel_length = line_length_px(measurement['start_px'], measurement['end_px'])
-            inches_value = pixel_length / self.pixels_per_inch
+            inches_value = pixel_length / pixels_per_inch
             millimeters_value = inches_value * MM_PER_INCH
             if millimeters_value < MIN_LINE_MM:
                 validation_errors.append({
