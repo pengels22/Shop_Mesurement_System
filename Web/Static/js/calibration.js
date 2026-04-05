@@ -175,7 +175,7 @@
             return;
         }
         const ts = Date.now();
-        imgEl.src = `/api/camera/preview?index=${index}&ts=${ts}`;
+        imgEl.src = `/api/camera/preview.jpg?index=${index}&ts=${ts}`;
     }
 
     function refreshPreviews() {

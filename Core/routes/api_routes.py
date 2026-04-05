@@ -131,6 +131,35 @@ def camera_preview() -> Response:
     return Response(_preview_generator(index), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
+@api_blueprint.get('/camera/preview.jpg')
+def camera_preview_jpg() -> Response:
+    """
+    Return a single JPEG frame for lightweight previews (avoids long-lived MJPEG streams that can crash Safari).
+    """
+    try:
+        index = int(request.args.get('index', -1))
+    except ValueError:
+        return json_error('validation_error', 'index must be an integer', HTTP_BAD_REQUEST)
+    if index < 0:
+        return json_error('validation_error', 'index must be >= 0', HTTP_BAD_REQUEST)
+
+    cap = cv2.VideoCapture(index)
+    if not cap or not cap.isOpened():
+        if cap:
+            cap.release()
+        return json_error('camera_unavailable', f'Camera {index} not available', 503)
+    success, frame = cap.read()
+    cap.release()
+    if not success or frame is None:
+        return json_error('frame_error', f'Camera {index} did not return a frame', 503)
+
+    ok, encoded = cv2.imencode(JPEG_EXTENSION, frame)
+    if not ok:
+        return json_error('encode_error', 'Failed to encode frame', 500)
+
+    return Response(encoded.tobytes(), mimetype='image/jpeg')
+
+
 @api_blueprint.post('/camera/capture')
 def capture_frame() -> Response:
     payload = request.get_json(silent=True) or {}
