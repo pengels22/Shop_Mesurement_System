@@ -24,10 +24,183 @@
         return;
     }
 
+    // Five-point calibration state
+    const dotImage = document.getElementById('dot-image');
+    const dotCanvas = document.getElementById('dot-canvas');
+    const dotCaptureButton = document.getElementById('dot-capture-button');
+    const dotResetButton = document.getElementById('dot-reset-button');
+    const dotSolveButton = document.getElementById('dot-solve-button');
+    const dotCameraSelect = document.getElementById('dot-camera-select');
+    const dotInstructions = document.getElementById('dot-instructions');
+    const dotStatus = document.getElementById('dot-status');
+
+    const DOT_ORDER = ['Top', 'Right', 'Bottom', 'Left', 'Center'];
+    const DOT_HINTS = [
+        { label: '1', x: 0.5, y: 0.18 }, // Top
+        { label: '2', x: 0.82, y: 0.5 }, // Right
+        { label: '3', x: 0.5, y: 0.82 }, // Bottom
+        { label: '4', x: 0.18, y: 0.5 }, // Left
+        { label: '5', x: 0.5, y: 0.5 },  // Center
+    ];
+    let lastTopValue = topSelect.value || '';
+    let lastSideValue = sideSelect.value || '';
+    const dotState = {
+        camera: 'top',
+        frameId: null,
+        imageWidth: 0,
+        imageHeight: 0,
+        points: [],
+    };
+
+    function updateDotInstruction() {
+        const idx = dotState.points.length;
+        if (idx < DOT_ORDER.length) {
+            dotInstructions.textContent = `Click ${DOT_ORDER[idx]} point (${idx + 1}/5)`;
+        } else {
+            dotInstructions.textContent = 'All points captured. Click Solve & Save.';
+        }
+        dotSolveButton.disabled = dotState.points.length !== 5;
+    }
+
+    function resetDotState() {
+        dotState.frameId = null;
+        dotState.points = [];
+        dotState.imageWidth = 0;
+        dotState.imageHeight = 0;
+        dotImage.src = '';
+        const ctx = dotCanvas.getContext('2d');
+        ctx.clearRect(0, 0, dotCanvas.width, dotCanvas.height);
+        updateDotInstruction();
+        dotStatus.textContent = '';
+    }
+
+    function resizeCanvasToImage() {
+        if (!dotImage.naturalWidth) return;
+        dotCanvas.width = dotImage.clientWidth;
+        dotCanvas.height = dotImage.clientHeight;
+        drawDotCanvas();
+    }
+
+    function imageToCanvas(point) {
+        return {
+            x: point.x * (dotCanvas.width / dotState.imageWidth),
+            y: point.y * (dotCanvas.height / dotState.imageHeight),
+        };
+    }
+
+    function canvasToImage(point) {
+        return {
+            x: point.x * (dotState.imageWidth / dotCanvas.width),
+            y: point.y * (dotState.imageHeight / dotCanvas.height),
+        };
+    }
+
+    function drawDotCanvas() {
+        const ctx = dotCanvas.getContext('2d');
+        ctx.clearRect(0, 0, dotCanvas.width, dotCanvas.height);
+        // draw hint numbers on the canvas to guide clicking
+        if (dotCanvas.width && dotCanvas.height) {
+            ctx.save();
+            ctx.globalAlpha = 0.28;
+            ctx.fillStyle = '#fbbf24';
+            ctx.strokeStyle = '#92400e';
+            ctx.lineWidth = 1.5;
+            ctx.font = 'bold 22px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            DOT_HINTS.forEach((hint) => {
+                const hx = hint.x * dotCanvas.width;
+                const hy = hint.y * dotCanvas.height;
+                ctx.beginPath();
+                ctx.arc(hx, hy, 16, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = '#111827';
+                ctx.fillText(hint.label, hx, hy);
+                ctx.fillStyle = '#fbbf24';
+            });
+            ctx.restore();
+        }
+        dotState.points.forEach((p, i) => {
+            const c = imageToCanvas(p);
+            ctx.fillStyle = '#38bdf8';
+            ctx.strokeStyle = '#0ea5e9';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(String(i + 1), c.x, c.y);
+        });
+    }
+
+    function handleDotClick(event) {
+        if (!dotState.frameId) {
+            showToast('Capture an image first.', 'error');
+            return;
+        }
+        if (dotState.points.length >= DOT_ORDER.length) {
+            return;
+        }
+        const rect = dotCanvas.getBoundingClientRect();
+        const canvasPoint = {
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+        };
+        const imagePoint = canvasToImage(canvasPoint);
+        dotState.points.push(imagePoint);
+        drawDotCanvas();
+        updateDotInstruction();
+        dotStatus.textContent = `Captured ${DOT_ORDER[dotState.points.length - 1]} point`;
+    }
+
+    async function captureDotFrame() {
+        dotState.camera = dotCameraSelect ? dotCameraSelect.value : 'top';
+        resetDotState();
+        try {
+            const payload = await apiFetch(`/api/camera/capture?camera=${dotState.camera}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ camera: dotState.camera }),
+            });
+            dotState.frameId = payload.image_frame_id;
+            dotState.imageWidth = payload.image_width;
+            dotState.imageHeight = payload.image_height;
+            dotImage.src = `/api/camera/capture/${payload.image_frame_id}?camera=${dotState.camera}&ts=${Date.now()}`;
+            dotStatus.textContent = 'Captured frame. Click the five points.';
+        } catch (error) {
+            showToast(error.message, 'error');
+            dotStatus.textContent = error.message;
+        }
+    }
+
+    async function solveDots() {
+        if (dotState.points.length !== 5) {
+            showToast('Capture all 5 points first.', 'error');
+            return;
+        }
+        try {
+            const payload = await apiFetch('/api/calibration/solve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ camera: dotState.camera, points: dotState.points }),
+            });
+            showToast(`Saved calibration for ${dotState.camera}. PPI=${payload.pixels_per_inch.toFixed(3)}`, 'success');
+            dotStatus.textContent = 'Calibration saved. You can recapture to verify.';
+            loadCalibration();
+        } catch (error) {
+            showToast(error.message, 'error');
+            dotStatus.textContent = error.message;
+        }
+    }
+
     function optionMarkup(device, activeTop, activeSide) {
-        const suffix = device.available ? '' : ' (in use/unavailable)';
         const activeTag = device.index === activeTop || device.index === activeSide ? ' (active)' : '';
-        return `<option value="${device.index}">${device.label}${activeTag}${suffix}</option>`;
+        return `<option value="${device.index}">${device.label}${activeTag}</option>`;
     }
 
     function syncInputsFromSelects() {
@@ -61,8 +234,9 @@
                 return;
             }
 
-            topSelect.innerHTML = devices.map((d) => optionMarkup(d, activeTop, activeSide)).join('');
-            sideSelect.innerHTML = devices.map((d) => optionMarkup(d, activeTop, activeSide)).join('');
+            const usable = devices.filter((d) => d.available);
+            topSelect.innerHTML = usable.map((d) => optionMarkup(d, activeTop, activeSide)).join('');
+            sideSelect.innerHTML = usable.map((d) => optionMarkup(d, activeTop, activeSide)).join('');
             if (activeTop !== undefined) {
                 topSelect.value = activeTop;
             }
@@ -71,6 +245,9 @@
             }
             cameraStatus.textContent = `Found ${devices.length} camera(s).`;
             syncInputsFromSelects();
+            refreshPreviews();
+            lastTopValue = topSelect.value;
+            lastSideValue = sideSelect.value;
         } catch (error) {
             cameraStatus.textContent = error.message;
             showToast(error.message, 'error');
@@ -95,6 +272,9 @@
             if ([...sideSelect.options].some((opt) => Number(opt.value) === sideIndex)) {
                 sideSelect.value = String(sideIndex);
             }
+            refreshPreviews();
+            lastTopValue = topSelect.value;
+            lastSideValue = sideSelect.value;
         } catch (error) {
             showToast(error.message, 'error');
             cameraStatus.textContent = error.message;
@@ -145,8 +325,26 @@
 
     if (refreshDevicesButton) refreshDevicesButton.addEventListener('click', loadDevices);
     if (saveCameraButton) saveCameraButton.addEventListener('click', saveCameraSelection);
-    topSelect.addEventListener('change', syncInputsFromSelects);
-    sideSelect.addEventListener('change', syncInputsFromSelects);
+    topSelect.addEventListener('change', function () {
+        const newTop = topSelect.value;
+        if (newTop === sideSelect.value && sideSelect.value !== '') {
+            sideSelect.value = lastTopValue || '';
+        }
+        syncInputsFromSelects();
+        saveCameraSelection();
+        lastTopValue = topSelect.value;
+        lastSideValue = sideSelect.value;
+    });
+    sideSelect.addEventListener('change', function () {
+        const newSide = sideSelect.value;
+        if (newSide === topSelect.value && topSelect.value !== '') {
+            topSelect.value = lastSideValue || '';
+        }
+        syncInputsFromSelects();
+        saveCameraSelection();
+        lastTopValue = topSelect.value;
+        lastSideValue = sideSelect.value;
+    });
     topIndexInput.addEventListener('input', function () {
         const value = topIndexInput.value;
         if (value === '') return;
@@ -170,19 +368,16 @@
     if (calibrateTopButton) calibrateTopButton.addEventListener('click', function () { applyCalibration('top'); });
     if (calibrateSideButton) calibrateSideButton.addEventListener('click', function () { applyCalibration('side'); });
 
-    function setPreview(imgEl, index) {
-        if (!imgEl || index === undefined || index === null || index === '') {
-            return;
-        }
+    function setLivePreview(imgEl, cameraId) {
+        if (!imgEl || !cameraId) return;
         const ts = Date.now();
-        imgEl.src = `/api/camera/preview.jpg?index=${index}&ts=${ts}`;
+        // Bust cache and restart stream; cameraId is logical ('top' or 'side')
+        imgEl.src = `/api/camera/stream?camera=${cameraId}&ts=${ts}`;
     }
 
     function refreshPreviews() {
-        const topIndex = topIndexInput.value !== '' ? topIndexInput.value : topSelect.value;
-        const sideIndex = sideIndexInput.value !== '' ? sideIndexInput.value : sideSelect.value;
-        setPreview(topPreview, topIndex);
-        setPreview(sidePreview, sideIndex);
+        setLivePreview(topPreview, 'top');
+        setLivePreview(sidePreview, 'side');
     }
 
     if (refreshTopPreview) refreshTopPreview.addEventListener('click', refreshPreviews);
@@ -195,7 +390,20 @@
         });
     });
 
+    // Five-point calibration hooks
+    if (dotCanvas) {
+        dotCanvas.addEventListener('click', handleDotClick);
+    }
+    if (dotCaptureButton) dotCaptureButton.addEventListener('click', captureDotFrame);
+    if (dotResetButton) dotResetButton.addEventListener('click', resetDotState);
+    if (dotSolveButton) dotSolveButton.addEventListener('click', solveDots);
+    if (dotImage) {
+        dotImage.addEventListener('load', resizeCanvasToImage);
+    }
+    window.addEventListener('resize', resizeCanvasToImage);
+
     // Initial load
     loadDevices();
     loadCalibration();
+    resetDotState();
 })();

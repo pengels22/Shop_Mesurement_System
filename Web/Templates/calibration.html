@@ -78,6 +78,32 @@
         </div>
         <div id="calibration-status" class="status-box top-gap">Calibration values not loaded yet.</div>
     </section>
+
+    <section class="card">
+        <div class="card-header-row small-gap">
+            <div>
+                <h2>Five-Point Mat Calibration</h2>
+                <p class="muted">Capture a still, then click the 5 dots in order: Top, Right, Bottom, Left, Center. Outer dots are 12\" apart; center is the mat center.</p>
+            </div>
+            <div class="toolbar-row">
+                <select id="dot-camera-select">
+                    <option value="top">Top Camera</option>
+                    <option value="side">Side Camera</option>
+                </select>
+                <button id="dot-capture-button" class="secondary-button" type="button">Capture for Calibration</button>
+                <button id="dot-reset-button" class="secondary-button" type="button">Reset Points</button>
+                <button id="dot-solve-button" class="primary-button" type="button" disabled>Solve & Save</button>
+            </div>
+        </div>
+        <div class="dot-stage">
+            <img id="dot-image" alt="Calibration capture">
+            <canvas id="dot-canvas"></canvas>
+        </div>
+        <div class="toolbar-row small-gap top-gap">
+            <span id="dot-instructions">Click Top point (1/5)</span>
+            <span id="dot-status" class="muted"></span>
+        </div>
+    </section>
 </section>
 {% endblock %}
 {% block scripts %}

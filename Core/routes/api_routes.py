@@ -4,6 +4,7 @@ from pathlib import Path
 import time
 
 import cv2
+import numpy as np
 from flask import Blueprint, Response, current_app, jsonify, request, send_file
 
 from Core.services.camera_service import (
@@ -264,6 +265,64 @@ def update_calibration() -> Response:
     rebuild_runtime_services()
 
     return jsonify({'ok': True, 'calibration': calibration})
+
+
+@api_blueprint.post('/calibration/solve')
+def solve_calibration() -> Response:
+    """
+    Accept 5 clicked points (top, right, bottom, left, center) and compute pixels_per_inch + homography.
+    The physical layout is a cross with outer points 12\" apart (6\" from center on each axis).
+    """
+    payload = request.get_json(force=True)
+    camera_id = ensure_camera_id(payload.get('camera'))
+    points = payload.get('points') or []
+    if len(points) != 5:
+        return json_error('validation_error', 'Five points are required', HTTP_BAD_REQUEST)
+
+    try:
+        src = np.array([[float(p['x']), float(p['y'])] for p in points], dtype=np.float64)
+    except Exception:
+        return json_error('validation_error', 'Points must have numeric x and y', HTTP_BAD_REQUEST)
+
+    # Expected order: top, right, bottom, left, center
+    dst = np.array([
+        [0.0, -6.0],   # top (inches)
+        [6.0, 0.0],    # right
+        [0.0, 6.0],    # bottom
+        [-6.0, 0.0],   # left
+        [0.0, 0.0],    # center
+    ], dtype=np.float64)
+
+    # Compute pixels-per-inch from opposing pairs
+    def dist(a, b):
+        return float(np.linalg.norm(src[a] - src[b]))
+
+    px_lr = dist(1, 3)  # right-left
+    px_tb = dist(2, 0)  # bottom-top
+    if px_lr <= 0 or px_tb <= 0:
+        return json_error('validation_error', 'Point distances are degenerate', HTTP_BAD_REQUEST)
+    pixels_per_inch = (px_lr / 12.0 + px_tb / 12.0) / 2.0
+
+    # Homography from image pixels -> inch space
+    H, status = cv2.findHomography(src, dst, 0)
+    if H is None:
+        return json_error('solve_failed', 'Could not compute homography', HTTP_SERVER_ERROR)
+
+    config_service = current_app.config['CONFIG_SERVICE']
+    calibration = config_service.load_calibration()
+    camera_cal = calibration.get(camera_id, {})
+    camera_cal['pixels_per_inch'] = float(pixels_per_inch)
+    camera_cal['homography'] = H.tolist()
+    calibration[camera_id] = camera_cal
+    config_service.save_calibration(calibration)
+    rebuild_runtime_services()
+
+    return jsonify({
+        'ok': True,
+        'camera': camera_id,
+        'pixels_per_inch': pixels_per_inch,
+        'homography': H.tolist(),
+    })
 
 
 

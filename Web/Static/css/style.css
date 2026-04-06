@@ -74,6 +74,26 @@ code {
     height: auto;
     display: block;
 }
+.dot-stage {
+    position: relative;
+    width: 100%;
+    max-width: 900px;
+    margin-top: 12px;
+    background: #0f172a;
+    border-radius: 12px;
+    overflow: hidden;
+}
+.dot-stage img {
+    width: 100%;
+    display: block;
+}
+.dot-stage canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: auto;
+}
 
 .card {
     background: var(--panel);
