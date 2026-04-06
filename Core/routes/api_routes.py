@@ -267,6 +267,26 @@ def update_calibration() -> Response:
     return jsonify({'ok': True, 'calibration': calibration})
 
 
+@api_blueprint.post('/calibration/clear')
+def clear_calibration() -> Response:
+    payload = request.get_json(force=True)
+    camera_id = ensure_camera_id(payload.get('camera'))
+    if camera_id not in ('top', 'side'):
+        return json_error('validation_error', 'camera must be top or side', HTTP_BAD_REQUEST)
+
+    config_service = current_app.config['CONFIG_SERVICE']
+    calibration = config_service.load_calibration()
+    camera_cal = calibration.get(camera_id, {})
+    camera_cal['homography'] = None
+    camera_cal['camera_matrix'] = None
+    camera_cal['dist_coeffs'] = None
+    calibration[camera_id] = camera_cal
+    config_service.save_calibration(calibration)
+    rebuild_runtime_services()
+
+    return jsonify({'ok': True, 'calibration': calibration})
+
+
 @api_blueprint.post('/calibration/solve')
 def solve_calibration() -> Response:
     """

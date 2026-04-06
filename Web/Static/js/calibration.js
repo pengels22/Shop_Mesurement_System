@@ -18,6 +18,8 @@
     const calibrateTopButton = document.getElementById('calibrate-top-button');
     const calibrateSideButton = document.getElementById('calibrate-side-button');
     const calibrationStatus = document.getElementById('calibration-status');
+    const clearTopHButton = document.getElementById('clear-top-h-button');
+    const clearSideHButton = document.getElementById('clear-side-h-button');
 
     // Bail out quietly if the calibration page isn't loaded
     if (!topSelect || !sideSelect) {
@@ -367,6 +369,8 @@
     });
     if (calibrateTopButton) calibrateTopButton.addEventListener('click', function () { applyCalibration('top'); });
     if (calibrateSideButton) calibrateSideButton.addEventListener('click', function () { applyCalibration('side'); });
+    if (clearTopHButton) clearTopHButton.addEventListener('click', function () { clearHomography('top'); });
+    if (clearSideHButton) clearSideHButton.addEventListener('click', function () { clearHomography('side'); });
 
     function setLivePreview(imgEl, cameraId) {
         if (!imgEl || !cameraId) return;
@@ -378,6 +382,21 @@
     function refreshPreviews() {
         setLivePreview(topPreview, 'top');
         setLivePreview(sidePreview, 'side');
+    }
+
+    async function clearHomography(camera) {
+        try {
+            await apiFetch('/api/calibration/clear', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ camera }),
+            });
+            showToast(`Cleared warp for ${camera} camera`, 'success');
+            loadCalibration();
+            refreshPreviews();
+        } catch (error) {
+            showToast(error.message, 'error');
+        }
     }
 
     if (refreshTopPreview) refreshTopPreview.addEventListener('click', refreshPreviews);
