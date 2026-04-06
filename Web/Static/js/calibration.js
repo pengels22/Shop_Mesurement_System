@@ -36,12 +36,12 @@
     const dotInstructions = document.getElementById('dot-instructions');
     const dotStatus = document.getElementById('dot-status');
 
-    const DOT_ORDER = ['Top', 'Right', 'Bottom', 'Left', 'Center'];
+    const DOT_ORDER = ['Top Left', 'Top Right', 'Bottom Right', 'Bottom Left', 'Center'];
     const DOT_HINTS = [
-        { label: '1', x: 0.5, y: 0.18 }, // Top
-        { label: '2', x: 0.82, y: 0.5 }, // Right
-        { label: '3', x: 0.5, y: 0.82 }, // Bottom
-        { label: '4', x: 0.18, y: 0.5 }, // Left
+        { label: '1', x: 0.18, y: 0.18 }, // TL
+        { label: '2', x: 0.82, y: 0.18 }, // TR
+        { label: '3', x: 0.82, y: 0.82 }, // BR
+        { label: '4', x: 0.18, y: 0.82 }, // BL
         { label: '5', x: 0.5, y: 0.5 },  // Center
     ];
     let lastTopValue = topSelect.value || '';

@@ -67,7 +67,11 @@ class CameraService:
             homography = calibration_settings.get('homography')
             if homography and isinstance(homography, list) and len(homography) == 3 and len(homography[0]) == 3:
                 try:
-                    self._homography = np.array(homography, dtype=np.float64)
+                    h_mat = np.array(homography, dtype=np.float64)
+                    if np.isfinite(h_mat).all():
+                        self._homography = h_mat
+                    else:
+                        self._homography = None
                 except Exception:
                     self._homography = None
         # no color mask by default; masking can be reintroduced later in ImageService

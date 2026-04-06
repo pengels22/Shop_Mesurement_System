@@ -290,8 +290,8 @@ def clear_calibration() -> Response:
 @api_blueprint.post('/calibration/solve')
 def solve_calibration() -> Response:
     """
-    Accept 5 clicked points (top, right, bottom, left, center) and compute pixels_per_inch + homography.
-    The physical layout is a cross with outer points 12\" apart (6\" from center on each axis).
+    Accept 5 clicked points in order: Top-Left, Top-Right, Bottom-Right, Bottom-Left, Center.
+    Outer points form a 12\" x 12\" square; center is at (0,0).
     """
     payload = request.get_json(force=True)
     camera_id = ensure_camera_id(payload.get('camera'))
@@ -304,28 +304,26 @@ def solve_calibration() -> Response:
     except Exception:
         return json_error('validation_error', 'Points must have numeric x and y', HTTP_BAD_REQUEST)
 
-    # Expected order: top, right, bottom, left, center
+    half = 6.0
     dst = np.array([
-        [0.0, -6.0],   # top (inches)
-        [6.0, 0.0],    # right
-        [0.0, 6.0],    # bottom
-        [-6.0, 0.0],   # left
-        [0.0, 0.0],    # center
+        [-half, -half],  # TL
+        [half, -half],   # TR
+        [half, half],    # BR
+        [-half, half],   # BL
+        [0.0, 0.0],      # Center
     ], dtype=np.float64)
 
-    # Compute pixels-per-inch from opposing pairs
     def dist(a, b):
         return float(np.linalg.norm(src[a] - src[b]))
 
-    px_lr = dist(1, 3)  # right-left
-    px_tb = dist(2, 0)  # bottom-top
-    if px_lr <= 0 or px_tb <= 0:
+    px_width = dist(0, 1)
+    px_height = dist(1, 2)
+    if px_width <= 0 or px_height <= 0:
         return json_error('validation_error', 'Point distances are degenerate', HTTP_BAD_REQUEST)
-    pixels_per_inch = (px_lr / 12.0 + px_tb / 12.0) / 2.0
+    pixels_per_inch = (px_width / 12.0 + px_height / 12.0) / 2.0
 
-    # Homography from image pixels -> inch space
     H, status = cv2.findHomography(src, dst, 0)
-    if H is None:
+    if H is None or not np.isfinite(H).all():
         return json_error('solve_failed', 'Could not compute homography', HTTP_SERVER_ERROR)
 
     config_service = current_app.config['CONFIG_SERVICE']
