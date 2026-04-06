@@ -3,8 +3,6 @@
 
     const topSelect = document.getElementById('top-camera-select');
     const sideSelect = document.getElementById('side-camera-select');
-    const topIndexInput = document.getElementById('top-camera-index');
-    const sideIndexInput = document.getElementById('side-camera-index');
     const refreshDevicesButton = document.getElementById('refresh-devices-button');
     const saveCameraButton = document.getElementById('save-camera-button');
     const cameraStatus = document.getElementById('camera-status');
@@ -224,15 +222,6 @@
         return `<option value="${device.index}">${device.label}${activeTag}</option>`;
     }
 
-    function syncInputsFromSelects() {
-        if (topSelect.value !== '') {
-            topIndexInput.value = topSelect.value;
-        }
-        if (sideSelect.value !== '') {
-            sideIndexInput.value = sideSelect.value;
-        }
-    }
-
     async function loadDevices() {
         try {
             cameraStatus.textContent = 'Scanning for USB cameras...';
@@ -250,8 +239,7 @@
                 sideSelect.innerHTML = topSelect.innerHTML;
                 if (activeTop !== undefined) topSelect.value = activeTop;
                 if (activeSide !== undefined) sideSelect.value = activeSide;
-                cameraStatus.textContent = 'Using configured cameras (probe unavailable while streams are open). You can still type indexes below.';
-                syncInputsFromSelects();
+                cameraStatus.textContent = 'Using configured cameras (probe unavailable while streams are open).';
                 return;
             }
 
@@ -265,7 +253,6 @@
                 sideSelect.value = activeSide;
             }
             cameraStatus.textContent = `Found ${devices.length} camera(s).`;
-            syncInputsFromSelects();
             refreshPreviews();
             lastTopValue = topSelect.value;
             lastSideValue = sideSelect.value;
@@ -276,8 +263,12 @@
     }
 
     async function saveCameraSelection() {
-        const topIndex = Number(topIndexInput.value !== '' ? topIndexInput.value : topSelect.value);
-        const sideIndex = Number(sideIndexInput.value !== '' ? sideIndexInput.value : sideSelect.value);
+        const topIndex = Number(topSelect.value);
+        const sideIndex = Number(sideSelect.value);
+        if (Number.isNaN(topIndex) || Number.isNaN(sideIndex)) {
+            showToast('Select both cameras before saving.', 'error');
+            return;
+        }
         try {
             await apiFetch('/api/camera/profile', {
                 method: 'POST',
@@ -351,7 +342,6 @@
         if (newTop === sideSelect.value && sideSelect.value !== '') {
             sideSelect.value = lastTopValue || '';
         }
-        syncInputsFromSelects();
         saveCameraSelection();
         lastTopValue = topSelect.value;
         lastSideValue = sideSelect.value;
@@ -361,30 +351,9 @@
         if (newSide === topSelect.value && topSelect.value !== '') {
             topSelect.value = lastSideValue || '';
         }
-        syncInputsFromSelects();
         saveCameraSelection();
         lastTopValue = topSelect.value;
         lastSideValue = sideSelect.value;
-    });
-    topIndexInput.addEventListener('input', function () {
-        const value = topIndexInput.value;
-        if (value === '') return;
-        for (let i = 0; i < topSelect.options.length; i += 1) {
-            if (topSelect.options[i].value === value) {
-                topSelect.value = value;
-                break;
-            }
-        }
-    });
-    sideIndexInput.addEventListener('input', function () {
-        const value = sideIndexInput.value;
-        if (value === '') return;
-        for (let i = 0; i < sideSelect.options.length; i += 1) {
-            if (sideSelect.options[i].value === value) {
-                sideSelect.value = value;
-                break;
-            }
-        }
     });
     if (calibrateTopButton) calibrateTopButton.addEventListener('click', function () { applyCalibration('top'); });
     if (calibrateSideButton) calibrateSideButton.addEventListener('click', function () { applyCalibration('side'); });
