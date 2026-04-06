@@ -175,8 +175,27 @@
             dotImage.src = `/api/camera/capture/${payload.image_frame_id}?camera=${dotState.camera}&ts=${Date.now()}`;
             dotStatus.textContent = 'Captured frame. Click the five points.';
         } catch (error) {
-            showToast(error.message, 'error');
-            dotStatus.textContent = error.message;
+            // Fallback: grab a single JPEG via preview for the selected camera index
+            try {
+                const profile = await apiFetch('/api/camera/profile');
+                const camIndex = profile.profile && profile.profile[dotState.camera] ? profile.profile[dotState.camera].camera_index : null;
+                if (camIndex === null || camIndex === undefined) {
+                    throw error;
+                }
+                const ts = Date.now();
+                dotState.frameId = `preview_${dotState.camera}_${ts}`;
+                dotImage.src = `/api/camera/preview.jpg?index=${camIndex}&ts=${ts}`;
+                dotImage.onload = () => {
+                    dotState.imageWidth = dotImage.naturalWidth;
+                    dotState.imageHeight = dotImage.naturalHeight;
+                    resizeCanvasToImage();
+                };
+                dotStatus.textContent = 'Using single-frame preview fallback. Click the five points.';
+                showToast('Live capture busy; using preview fallback.', 'warning');
+            } catch (fallbackError) {
+                showToast(error.message || 'Capture failed', 'error');
+                dotStatus.textContent = error.message || 'Capture failed';
+            }
         }
     }
 
