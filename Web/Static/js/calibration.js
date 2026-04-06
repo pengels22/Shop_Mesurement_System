@@ -394,7 +394,7 @@
     function setLivePreview(imgEl, cameraId) {
         if (!imgEl || !cameraId) return;
         const ts = Date.now();
-        // Bust cache and restart stream; cameraId is logical ('top' or 'side')
+        // Use logical ids so the backend routes to the correct camera service
         imgEl.src = `/api/camera/stream?camera=${cameraId}&ts=${ts}`;
     }
 
