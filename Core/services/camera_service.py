@@ -200,23 +200,31 @@ class CameraService:
         return frame
 
     def mjpeg_generator(self) -> Generator[bytes, None, None]:
-        while True:
-            try:
-                frame = self.get_frame()
-            except Exception:
-                # try to recover by reopening the capture
+        try:
+            while True:
                 try:
-                    if self._capture is not None:
-                        self._capture.release()
+                    frame = self.get_frame()
                 except Exception:
-                    pass
-                self._capture = None
-                time.sleep(0.3)
-                continue
+                    # try to recover by reopening the capture
+                    try:
+                        if self._capture is not None:
+                            self._capture.release()
+                    except Exception:
+                        pass
+                    self._capture = None
+                    time.sleep(0.3)
+                    continue
 
-            success, encoded_frame = cv2.imencode(JPEG_EXTENSION, frame)
-            if not success:
-                time.sleep(0.05)
-                continue
-            jpg_bytes = encoded_frame.tobytes()
-            yield MJPEG_BOUNDARY + MJPEG_CONTENT_TYPE + jpg_bytes + MJPEG_LINE_BREAK
+                success, encoded_frame = cv2.imencode(JPEG_EXTENSION, frame)
+                if not success:
+                    time.sleep(0.05)
+                    continue
+                jpg_bytes = encoded_frame.tobytes()
+                yield MJPEG_BOUNDARY + MJPEG_CONTENT_TYPE + jpg_bytes + MJPEG_LINE_BREAK
+        finally:
+            try:
+                if self._capture is not None:
+                    self._capture.release()
+            except Exception:
+                pass
+            self._capture = None
