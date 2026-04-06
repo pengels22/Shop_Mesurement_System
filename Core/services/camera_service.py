@@ -34,6 +34,9 @@ class CameraService:
         self._homography = None
         self._capture = None
         self._lock = threading.Lock()
+        self._capture_read_lock = threading.Lock()
+        self._stream_lock = threading.Lock()
+        self._stream_clients = 0
         self._counter = 0
         # Load optional camera calibration for undistortion
         camera_matrix = camera_profile.get('camera_matrix')
@@ -160,7 +163,8 @@ class CameraService:
             if capture_device is None or not capture_device.isOpened():
                 time.sleep(0.1)
                 continue
-            success, frame = capture_device.read()
+            with self._capture_read_lock:
+                success, frame = capture_device.read()
             if success and frame is not None:
                 break
             time.sleep(0.1)
@@ -200,6 +204,9 @@ class CameraService:
         return frame
 
     def mjpeg_generator(self) -> Generator[bytes, None, None]:
+        # Track concurrent stream clients so we only release the device when the last one disconnects.
+        with self._stream_lock:
+            self._stream_clients += 1
         try:
             while True:
                 try:
@@ -222,9 +229,13 @@ class CameraService:
                 jpg_bytes = encoded_frame.tobytes()
                 yield MJPEG_BOUNDARY + MJPEG_CONTENT_TYPE + jpg_bytes + MJPEG_LINE_BREAK
         finally:
-            try:
-                if self._capture is not None:
-                    self._capture.release()
-            except Exception:
-                pass
-            self._capture = None
+            with self._stream_lock:
+                self._stream_clients = max(0, self._stream_clients - 1)
+                should_release = self._stream_clients == 0
+            if should_release:
+                try:
+                    if self._capture is not None:
+                        self._capture.release()
+                except Exception:
+                    pass
+                self._capture = None
